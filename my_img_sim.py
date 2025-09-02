@@ -218,7 +218,7 @@ def make_sidebar():
     export_option = st.sidebar.selectbox("Image Export Options", save_values_list)
 
     if camera_model == "sCMOS":
-        qe_eff =  float(qe)/100
+        qe_eff =  float(qe)
         ron = float(rn)
         mu_dark =  float(dc)
         full_well_cap = float(fwc)
@@ -839,6 +839,7 @@ if launch_button:
 
 # quick debug
 #st.write(values)
+
 
 
 
