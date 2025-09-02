@@ -690,7 +690,7 @@ def make_plots(new_vals):
                 return(any_image('import_images/image_space.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Camera Testchart":
-                return(any_image('import_images/my_image.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+                return(any_image('import_images/my_image.PNG',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
 
     def safe_as_tiff(sim_im):
             """
@@ -837,3 +837,4 @@ if launch_button:
 
 # quick debug
 #st.write(values)
+
