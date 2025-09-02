@@ -795,6 +795,8 @@ def snr_info(input_vals):
 
 values = make_sidebar()
 
+st.image("Resources/EXClogo.png", width=300)
+
 st.title("pco.calculator: Image Simulation")
 
 st.info("""
@@ -837,4 +839,5 @@ if launch_button:
 
 # quick debug
 #st.write(values)
+
 
