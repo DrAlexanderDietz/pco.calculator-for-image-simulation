@@ -124,7 +124,7 @@ def make_sidebar():
     # Dropdown for image selection
     dd_img_options = [
         "Gaussian", "Square", "Homogeneous", "Microscopy Example",
-        "Astronomy Example", "Import 'my_image.png'"
+        "Astronomy Example", "Camera Testchart"
     ]
     dd_img = st.sidebar.selectbox("Choose Image", dd_img_options)
 
@@ -689,7 +689,7 @@ def make_plots(new_vals):
             elif base_img == "Astronomy Example":
                 return(any_image('import_images/image_space.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
-            elif base_img == "Import 'my_image.png'":
+            elif base_img == "Camera Testchart":
                 return(any_image('import_images/my_image.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
 
     def safe_as_tiff(sim_im):
