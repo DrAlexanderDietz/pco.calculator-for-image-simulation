@@ -3,7 +3,3 @@ pandas
 numpy
 matplotlib
 pillow
-csv
-os
-math
-io
