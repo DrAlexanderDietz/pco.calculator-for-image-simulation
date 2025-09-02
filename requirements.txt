@@ -1,0 +1,9 @@
+streamlit
+pandas
+numpy
+matplotlib
+PIL
+csv
+os
+math
+io
