@@ -2,7 +2,7 @@ streamlit
 pandas
 numpy
 matplotlib
-PIL
+pillow
 csv
 os
 math
