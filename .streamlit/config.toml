@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#A7C957"              # lime-green accent
+backgroundColor = "#0D1B2A"           # deep navy
+secondaryBackgroundColor = "#1B263B"  # slightly lighter navy
+textColor = "#FFFFFF"                 # crisp white
+font = "sans serif"
