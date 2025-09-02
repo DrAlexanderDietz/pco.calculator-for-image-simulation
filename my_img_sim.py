@@ -203,8 +203,7 @@ def make_sidebar():
     else:
         disable_widget = False
 
-    #qe = st.sidebar.text_input("Quantum Efficiency", get_qe(camera_model,wavelength), disabled=disable_widget)
-    qe = st.number_input("Quantum Efficiency", min_value=0.0, max_value=1.0, value=float(get_qe(camera_model,wavelength)), step=0.01)
+    qe = st.sidebar.text_input("Quantum Efficiency", get_qe(camera_model,wavelength), disabled=disable_widget)
     rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
     dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3])
     fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
@@ -840,6 +839,7 @@ if launch_button:
 
 # quick debug
 #st.write(values)
+
 
 
 
