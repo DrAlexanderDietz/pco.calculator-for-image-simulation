@@ -12,13 +12,12 @@ import math
 import io
 
 # -----------------------------
-# Utility functions (adapted)
+# Utility functions 
 # -----------------------------
 
-import streamlit as st
-import math
-
 def make_sidebar():
+    """Calling this function draws the sidebar with all its settings and parameters and returns their values as dict."""
+
     def load_csv_to_dict(file_path):
         """
         Import data from csv file from <file path>
@@ -45,7 +44,8 @@ def make_sidebar():
         return data_dict 
 
     def load_QE_curve(file_path, model):        
-        """Read the QE[%]=f(wavelength) from txt file. Use the camera family 
+        """
+        Read the QE[%]=f(wavelength) from txt file. Use the camera family 
         'model'as the basis for the curve choice.
         
         Parameter:
@@ -95,25 +95,48 @@ def make_sidebar():
 
         return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno])
 
-    def get_qe(cam,wavelength):
+    def get_qe(cam, wavelength):
+        """
+        Pull QE-Curve Data from raw files and return as function of camera class and wavelength.
+        Interpolates between nearest wavelength points.
         
+        Parameters:
+        - cam: camera model
+        - wavelength: wavelength in nm
+        """
+
         target = float(wavelength)
         camera_class = data_cams[cam][0]
 
-        #import from txt file
-        qe_dict = load_QE_curve("Resources", "{}.txt".format(camera_class))
-        
-        #take closest wl value and according QE(wl)
-        closest_key = min(qe_dict.keys(), key=lambda k: abs(k - target))       
-        qe_cam_wl = round(qe_dict[closest_key]/100,2)
-        
-        return qe_cam_wl
-        
+        # Import from txt file
+        qe_dict = load_QE_curve("Resources", f"{camera_class}.txt")
+        keys = sorted(qe_dict.keys())
 
-    # --- Define callbacks ---
+        # Clamp if outside the known range
+        if target <= keys[0]:
+            qe_cam_wl = qe_dict[keys[0]]
+        elif target >= keys[-1]:
+            qe_cam_wl = qe_dict[keys[-1]]
+        else:
+            # Find neighbors and interpolate
+            for i in range(len(keys) - 1):
+                k1, k2 = keys[i], keys[i + 1]
+                if k1 <= target <= k2:
+                    v1, v2 = qe_dict[k1], qe_dict[k2]
+                    qe_cam_wl = v1 + (v2 - v1) * (target - k1) / (k2 - k1)
+                    break
+
+        return round(qe_cam_wl / 100, 2)  # convert from % → fraction
+        
     def crop_min(exp_n_in):
+        
+        "callback function for setting crop to reasonable values only --> clamp min based on the width of the image as 2^n"
+        
         clamp_min = math.ceil(min(((2**(exp_n_in-10))*100), 100))
+        
         return clamp_min
+    
+    #### Make the sidebar ########-----------------------
     
     # Sidebar title
     st.sidebar.title("Controls")
@@ -124,21 +147,24 @@ def make_sidebar():
     # Dropdown for image selection
     dd_img_options = [
         "Gaussian", "Square", "Homogeneous", "Microscopy Example",
-        "Astronomy Example", "Camera Testchart"
-    ]
+        "Astronomy Example", "Camera Testchart"]
     dd_img = st.sidebar.selectbox("Choose Image", dd_img_options)
 
-    # --- Sliders with callbacks ---
-    st.sidebar.slider("Image width exponent (2$^n$)",
+    # --- Slider with callbacks ---
+    st.sidebar.slider("$log_2$(Image width)",
             5, 10, 8,
-            key="exp_n")
+            key="exp_n",
+            help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.")
 
-    cm = st.session_state.exp_n
-
-    if cm != 10:
+    #disablbe slider when full 1064 pxl width image is schosen
+    if st.session_state.exp_n != 10:
         st.sidebar.slider("Pixel Pitch Crop [%]",
             crop_min(st.session_state.exp_n), 100, 100,
-            key="crop"
+            key="crop",
+            help="Application of crop allow to compare different pixel sizes. If you for example"\
+            " want to compare 4.5 µm pixels of the pco.edge 10 bi with the 6.5 µm pixels of the" \
+            " pco.edge 4.2, simply apply a 71 percent 'crop' (=4.6/6.5) to the larger pixels to adapt the field" \
+            " of view and effectively 'zoom out' in the image."
             )
     else:
         st.sidebar.slider("Pixel Pitch Crop [%]",
@@ -147,19 +173,22 @@ def make_sidebar():
             disabled=True
             )
 
-    # --- Display linked values ---
-    #st.write("Image width:", 2**st.session_state.exp_n)
-    #st.write("Crop [%]:", st.session_state.crop)
-
     # Line profile position
-    slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50)
+    slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50, 
+                                      help="Position of the line profile relative to the image height")
 
     # ---------- CAMERA & EXPERIMENT ----------
     st.sidebar.subheader("CAMERA & SETTINGS")
 
-    # Camera dropdown (replace with your camera dict keys)
+    # Camera dropdown
     dropdown_options = list(data_cams.keys())
-    camera_model = st.sidebar.selectbox("Camera Model and Mode", dropdown_options, index=len(dropdown_options)-1)
+    camera_model = st.sidebar.selectbox("Camera Model and Mode",
+                                        dropdown_options,
+                                        index=len(dropdown_options)-1,
+                                        help="Chose your camera model. For all PCO cameras / opertaion modes values are predefined."\
+                                            " To configure your own custom camera use the **sCMOS** option. The Perfect Camera does" \
+                                            " act for comparison purposes. It does not show any tecnical noise besides the Poissonian" \
+                                            " noise and has perfect QE.")
 
     # Exposure time
     exposure_time = st.sidebar.text_input("Exposure Time / sec", "1")
@@ -168,42 +197,48 @@ def make_sidebar():
     bin_values_list = ["None", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
 
-
     # ---------- ILLUMINATION ----------
     st.sidebar.subheader("ILLUMINATION")
 
+    #wavelength as slider
     wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
 
+    #photon flux density max and add backgraund
     phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
     phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
 
     # ---------- DISPLAY SETTINGS ----------
     st.sidebar.subheader("DISPLAY SETTINGS")
 
-    
+    #histogram scale choices Linear or Log
     hist_scale = st.sidebar.selectbox("Histogram Scale", ["Linear", "Logscale"])
 
+    #Autoscale the image data or set deliberate limits 
     ats_opts_list = ["Autoscale","Set LUT Limits"]
     ats_opts = st.sidebar.selectbox("Scaling", ats_opts_list)
 
+    #disable when autoscale
     if ats_opts == "Autoscale":
         disable_lut_widget = True
     else:
         disable_lut_widget = False 
 
+    #max and min for manual LUT
     lut_max = st.sidebar.text_input("Scale LUT max.", "5000", disabled=disable_lut_widget)
-
     lut_min = st.sidebar.text_input("Scale LUT min.", "100", disabled=disable_lut_widget)
 
     # ---------- CAM SPECIFICATIONS ----------
     st.sidebar.subheader("CAMERA SPECIFICS")
 
+    #disable als camera spex settings unless choice is sCMOS
     if camera_model != "sCMOS":
         disable_widget = True
     else:
         disable_widget = False
 
-    qe = st.sidebar.text_input("Quantum Efficiency", get_qe(camera_model,wavelength), disabled=disable_widget)
+    #make camera spex as sidbar items
+    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
+    step=0.01,disabled=disable_widget)
     rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
     dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3])
     fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
@@ -214,9 +249,11 @@ def make_sidebar():
     # ---------- SIMULATION CONTROL ----------
     st.sidebar.subheader("SIMULATION CONTROL")
 
+    #choice for download options
     save_values_list = ["Simulated Image as TIFF", "Simulation Summary PDF"]
     export_option = st.sidebar.selectbox("Image Export Options", save_values_list)
 
+    #is SCMOS is choice use slider/input setting, otherwise pull datasheet values
     if camera_model == "sCMOS":
         qe_eff =  float(qe)
         ron = float(rn)
@@ -233,7 +270,6 @@ def make_sidebar():
         cF =  data_sheet_vals(camera_model)[4]
         p_pitch =  data_sheet_vals(camera_model)[0]
         dno =  data_sheet_vals(camera_model)[5]
-
 
     return {
         # image
@@ -272,7 +308,7 @@ def bin_fac(input_vals):
     return(2**input_vals["bin_factor"])
 
 def eff_el_ph(input_vals):
-    """#Max Mean Photons from Imgage"""
+    """#Max Mean Photons from Imgage: eff_el_ph = phi_pfd_max * t_exp * pxl_pitch**2 """
     
     phi_pfd_max = input_vals["phi_pfd_max"]
     t_exp = input_vals["t_exp"]
@@ -281,7 +317,7 @@ def eff_el_ph(input_vals):
     return(phi_pfd_max * t_exp * pxl_pitch**2)
 
 def eff_el_bg(input_vals):
-    """Mean Photon Contribution from homogeneous Background"""
+    """Mean Photon Contribution from homogeneous Background: eff_el_bg = phi_pfd_bg * t_exp * pxl_pitch**2"""
     
     phi_pfd_bg = input_vals["phi_pfd_bg"]
     t_exp = input_vals["t_exp"]
@@ -360,7 +396,6 @@ def square_overlay(input_vals, dw=0.5, hgt=1):
     return sq_image
     
 def homogeneous_illumination(input_vals):
-    
     """Creates a map for a homogeneous illumination"""
     
     width = input_vals["f_width"]
@@ -421,7 +456,6 @@ def bin_array_sum(array,bin_size):
         return reshaped.sum(axis=(1, 3))
 
 def make_plots(new_vals):
-
     """This is the main function to run the plot generation. It draws its
     values from the values set in the GUI."""
     
@@ -643,7 +677,7 @@ def make_plots(new_vals):
         
         plt.show()
 
-        
+        #draw the downloadbutton and award it functionality to download the pdf to the above plots
         if export_choice == "Simulation Summary PDF":
             
             #plt.savefig('Export_image.png', dpi=300)
@@ -660,7 +694,7 @@ def make_plots(new_vals):
                 )
                        
 
-    def get_base_image(input_vals,path="'image_pco.jpg'"):
+    def get_base_image(input_vals):
             """
             Draw the image that shall be superimposed with noise from a 
             selection.
@@ -792,6 +826,7 @@ def snr_info(input_vals):
     
     return(my_snr_info)        
 
+############################## PROGRAMM ###########################
 
 values = make_sidebar()
 
@@ -800,14 +835,14 @@ st.image("Resources/EXClogo.png", use_container_width=True)
 st.title("pco.calculator: Image Simulation")
 
 st.info("""
-            With this little tool you can superimpose an input image according to camera performance and 
-            acquisition parameters such as exposure time, illumination situation and all sources of noise 
-            such as read noise, photon noise and dark noise. Simply use the sidebar to make your settings and
-            launch the calculator via the **Run Simulation** button.
-        
-            Histogram and line profile data are also given to quantify the impact of different imaging settings. 
-            The outcome data can be stored in different formats, i.e. as PDF, 16-bit TIFF or as an animated GIF.
-            """)
+        With this little tool you can superimpose an input image according to camera performance and 
+        acquisition parameters such as exposure time, illumination situation and all sources of noise 
+        such as read noise, photon noise and dark noise. Simply use the sidebar to make your settings and
+        launch the calculator via the **Run Simulation** button.
+        Histogram and line profile data are also given to quantify the impact of different imaging settings. 
+        The outcome data can be stored in different as PDF or 16-bit TIFF. Use the **DOWNLOAD** button, that 
+        appears after succesfull simulation lauch in the sidebar, to pull the file to your **Downloads** directory.
+        """)
 
 
 launch_button = st.button("Run Simulation")
@@ -815,34 +850,32 @@ launch_button = st.button("Run Simulation")
 if launch_button:
 
     st.subheader("Image Simulation Summary")
-    make_plots(values)
     
+    #Launch Simulation upon button press and...
+    
+    make_plots(values) #...draw figure to the dashboard
+    
+    #...print some explanatory text
     st.markdown("**Figure 1**: Simulation of a square shaped ROI for an (s)CMOS type of camera. The result is a function of the "\
                 "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
                 "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
                 "tool is a nice assistance for determining a suitable camera for a given experiment.")
 
     st.subheader("Signal-to-Noise Performance")
+    
     st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
             "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
             "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
             "well capacity of the sensor.")
-
+    
+    #...show a signal do noise ratio consideration
     df = pd.DataFrame.from_dict(
         {k: f"{v:.2f}" for k, v in snr_info(values).items()},
         orient="index", columns=["Value"])
+    
     st.table(df)
 
 
-# example: pass to your simulation / plotting
-# make_plots(values)
-
 # quick debug
 #st.write(values)
-
-
-
-
-
-
 
