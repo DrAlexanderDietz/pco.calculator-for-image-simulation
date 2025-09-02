@@ -1,0 +1,839 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from datetime import datetime
+from PIL import Image
+import csv, os
+import csv
+from matplotlib import rcParams
+import math
+import io
+
+# -----------------------------
+# Utility functions (adapted)
+# -----------------------------
+
+import streamlit as st
+import math
+
+def make_sidebar():
+    def load_csv_to_dict(file_path):
+        """
+        Import data from csv file from <file path>
+            
+        Parameter:
+        file_path: path/name of import csv file
+            
+        """
+        
+        data_dict = {}
+        
+        with open(file_path, newline='', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile,delimiter=';')
+            next(reader)  # Skip header row
+            
+            #extract from csv. Use the camera+mode as key
+            for row in reader:
+                if row:
+                    key = row[1]
+                    values = [row[0]]
+                    values += [float(i) for i in row[2:]]
+                    data_dict[key] = values
+        
+        return data_dict 
+
+    def load_QE_curve(file_path, model):        
+        """Read the QE[%]=f(wavelength) from txt file. Use the camera family 
+        'model'as the basis for the curve choice.
+        
+        Parameter:
+            file_path: path/name of import csv file
+            model: camera model such as 'pco.edge 4.2'
+        """
+        
+        datei = open(file_path + "/" + model, "r")
+        
+        my_dict = {}         
+        zeilen = datei.readlines()             
+        
+        for i in range(2):
+            zeilen.pop(0)                      
+        
+        for zeile in zeilen:
+            werte = zeile.split()
+            my_dict[float(werte[0].replace(',','.'))] = float(
+                werte[-1].replace(',','.'))
+            
+        datei.close()
+            
+        return(my_dict)
+                    
+            
+    csv_file = 'Resources/CamsList.csv'  # Replace with your CSV file path
+    data_cams = load_csv_to_dict(csv_file) #load camera datasheet values from file
+
+    def data_sheet_vals(cam):
+        
+        """
+        This function shall update return specification variables/items when a camera model 
+        is chosen in the GUI. The values are determined by the camera datasheet.
+
+        Ouput: list[pixel pitch, full well cap, read noise, dark noise,conversion factor, offset]
+        
+        """
+        
+        #simple overwriting of pvalues according to dataset value
+        
+        ds_pxl = float(data_cams[cam][1])
+        ds_fwc = float(data_cams[cam][2])
+        ds_ron = float(data_cams[cam][3])
+        ds_mu_d = float(data_cams[cam][4])
+        ds_cF = float(data_cams[cam][6])
+        ds_dno = float(data_cams[cam][7])
+
+        return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno])
+
+    def get_qe(cam,wavelength):
+        
+        target = float(wavelength)
+        camera_class = data_cams[cam][0]
+
+        #import from txt file
+        qe_dict = load_QE_curve("Resources", "{}.txt".format(camera_class))
+        
+        #take closest wl value and according QE(wl)
+        closest_key = min(qe_dict.keys(), key=lambda k: abs(k - target))       
+        qe_cam_wl = round(qe_dict[closest_key]/100,2)
+        
+        return qe_cam_wl
+        
+
+    # --- Define callbacks ---
+    def crop_min(exp_n_in):
+        clamp_min = math.ceil(min(((2**(exp_n_in-10))*100), 100))
+        return clamp_min
+    
+    # Sidebar title
+    st.sidebar.title("Controls")
+
+    # ---------- IMAGE SETTINGS ----------
+    st.sidebar.subheader("IMAGE SETTINGS")
+
+    # Dropdown for image selection
+    dd_img_options = [
+        "Gaussian", "Square", "Homogeneous", "Microscopy Example",
+        "Astronomy Example", "Import 'my_image.png'"
+    ]
+    dd_img = st.sidebar.selectbox("Choose Image", dd_img_options)
+
+    # --- Sliders with callbacks ---
+    st.sidebar.slider("Image width exponent (2$^n$)",
+            5, 10, 8,
+            key="exp_n")
+
+    cm = st.session_state.exp_n
+
+    if cm != 10:
+        st.sidebar.slider("Pixel Pitch Crop [%]",
+            crop_min(st.session_state.exp_n), 100, 100,
+            key="crop"
+            )
+    else:
+        st.sidebar.slider("Pixel Pitch Crop [%]",
+            1, 100, 100,
+            key="crop",
+            disabled=True
+            )
+
+    # --- Display linked values ---
+    #st.write("Image width:", 2**st.session_state.exp_n)
+    #st.write("Crop [%]:", st.session_state.crop)
+
+    # Line profile position
+    slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50)
+
+    # ---------- CAMERA & EXPERIMENT ----------
+    st.sidebar.subheader("CAMERA & SETTINGS")
+
+    # Camera dropdown (replace with your camera dict keys)
+    dropdown_options = list(data_cams.keys())
+    camera_model = st.sidebar.selectbox("Camera Model and Mode", dropdown_options, index=len(dropdown_options)-1)
+
+    # Exposure time
+    exposure_time = st.sidebar.text_input("Exposure Time / sec", "1")
+
+    # Binning options
+    bin_values_list = ["None", "2x2", "4x4"]
+    bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
+
+
+    # ---------- ILLUMINATION ----------
+    st.sidebar.subheader("ILLUMINATION")
+
+    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
+
+    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
+    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
+
+    # ---------- DISPLAY SETTINGS ----------
+    st.sidebar.subheader("DISPLAY SETTINGS")
+
+    
+    hist_scale = st.sidebar.selectbox("Histogram Scale", ["Linear", "Logscale"])
+
+    ats_opts_list = ["Autoscale","Set LUT Limits"]
+    ats_opts = st.sidebar.selectbox("Scaling", ats_opts_list)
+
+    if ats_opts == "Autoscale":
+        disable_lut_widget = True
+    else:
+        disable_lut_widget = False 
+
+    lut_max = st.sidebar.text_input("Scale LUT max.", "5000", disabled=disable_lut_widget)
+
+    lut_min = st.sidebar.text_input("Scale LUT min.", "100", disabled=disable_lut_widget)
+
+    # ---------- CAM SPECIFICATIONS ----------
+    st.sidebar.subheader("CAMERA SPECIFICS")
+
+    if camera_model != "sCMOS":
+        disable_widget = True
+    else:
+        disable_widget = False
+
+    qe = st.sidebar.text_input("Quantum Efficiency", get_qe(camera_model,wavelength), disabled=disable_widget)
+    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
+    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3])
+    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
+    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
+    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
+    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
+
+    # ---------- SIMULATION CONTROL ----------
+    st.sidebar.subheader("SIMULATION CONTROL")
+
+    save_values_list = ["Simulated Image as TIFF", "Simulation Summary PDF"]
+    export_option = st.sidebar.selectbox("Image Export Options", save_values_list)
+
+    if camera_model == "sCMOS":
+        qe_eff =  float(qe)/100
+        ron = float(rn)
+        mu_dark =  float(dc)
+        full_well_cap = float(fwc)
+        cF =  float(convF)
+        p_pitch =  float(pxlpitch)
+        dno =  float(dn_offset)
+    else:
+        qe_eff =  get_qe(camera_model, wavelength)
+        ron = data_sheet_vals(camera_model)[2]
+        mu_dark =  data_sheet_vals(camera_model)[3]
+        full_well_cap = data_sheet_vals(camera_model)[1]
+        cF =  data_sheet_vals(camera_model)[4]
+        p_pitch =  data_sheet_vals(camera_model)[0]
+        dno =  data_sheet_vals(camera_model)[5]
+
+
+    return {
+        # image
+        "base_image": dd_img,
+        "exp_n": int(st.session_state.exp_n),
+        "f_width": int(2 ** st.session_state.exp_n),
+        "img_comp": int(st.session_state.crop)/100,
+        "line_pos_prct": int(slider_linpos),
+        # camera & experiment
+        "camera_name": camera_model,
+        "t_exp": float(exposure_time),
+        "bin_factor": bin_values_list.index(bin_opts),
+        # illumination
+        "lmda_nm": int(wavelength),
+        "phi_pfd_max": float(phi_pfd_max),
+        "phi_pfd_bg": float(phi_pfd_bg),
+        # display
+        "hist_scale": hist_scale,
+        "lut_autoscale": ats_opts_list.index(ats_opts),
+        "lut_scale_max": float(lut_max),
+        "lut_scale_min": float(lut_min),
+        # cam specs
+        "qe_eff": qe_eff,
+        "ron": ron,
+        "mu_dark": mu_dark,
+        "full_well_cap": full_well_cap,
+        "convF": cF,
+        "pxl_pitch": p_pitch,
+        "dn_offset": dno,
+        # export
+        "export_choice": export_option,
+    }
+
+def bin_fac(input_vals):
+    """#Bining als Potenz von 2: 0: 1x1 / 1: 2x2 / 2: 4x4, ..."""
+    return(2**input_vals["bin_factor"])
+
+def eff_el_ph(input_vals):
+    """#Max Mean Photons from Imgage"""
+    
+    phi_pfd_max = input_vals["phi_pfd_max"]
+    t_exp = input_vals["t_exp"]
+    pxl_pitch = input_vals["pxl_pitch"]
+    
+    return(phi_pfd_max * t_exp * pxl_pitch**2)
+
+def eff_el_bg(input_vals):
+    """Mean Photon Contribution from homogeneous Background"""
+    
+    phi_pfd_bg = input_vals["phi_pfd_bg"]
+    t_exp = input_vals["t_exp"]
+    pxl_pitch = input_vals["pxl_pitch"]
+    
+    return(phi_pfd_bg * t_exp * pxl_pitch**2)
+
+def line_pos(input_vals):
+    """#Effektive Position [% der Bildhöhe] der Linie auf Canvas"""
+    
+    f_width = input_vals["f_width"]
+    lpp = input_vals["line_pos_prct"]
+    
+    return(int(f_width/bin_fac(input_vals)*lpp/100))
+
+def lut_settings(input_vals):
+    """Conacntenate the LUT settings to list:
+        [ON/OFF, MAX LUT value, MIN LUT value]"""
+    
+    return([input_vals["lut_autoscale"],input_vals["lut_scale_max"],
+            input_vals["lut_scale_min"]])
+
+def rand_pG(mu, input_vals):     
+        """
+        calculate random pixel read value based on mean mu, conversion factor 
+        convF = 1/K, readout noise / e-, dark current mu_dark
+        """       
+        convF = input_vals["convF"]
+        ron = input_vals["ron"]
+        mu_d =input_vals["mu_dark"]
+        t_e = input_vals["t_exp"]
+        dn_offset = input_vals["dn_offset"]
+                       
+        #discrete poisson distrubuted value
+        poisson_rand_no = np.random.poisson(mu+t_e*mu_d) 
+        
+        #gauss curve around discrete poisson value with read noise as stdv w/ discrete DN
+        gauss_smeared_no = np.round(np.random.normal(poisson_rand_no,ron)*1/convF)+dn_offset
+        
+        return(gauss_smeared_no)
+    
+def gaussian_array(x, y, sigma, hgt=1):
+    """
+    Generates a 2D array of shape (x, y) following a Gaussian distribution.
+    The maximum value is close to the center of the image.
+    
+    Parameters:
+        x (int): Number of rows in the array.
+        y (int): Number of columns in the array.
+        sigma (float): Standard deviation of the Gaussian distribution.
+    
+    Returns:
+        np.ndarray: 2D array with Gaussian distribution.
+    """
+    xv, yv = np.meshgrid(np.arange(y), np.arange(x))
+    x0, y0 = x / 2.1, y / 2.1
+    gaussian = hgt * np.exp(-((xv - x0) ** 2 + (yv - y0) ** 2) / (2 * sigma ** 2))
+
+    return gaussian    
+
+def square_overlay(input_vals, dw=0.5, hgt=1):
+    """Creates a map for a brightsquare shaped area"""
+    
+    width = input_vals["f_width"]
+    crop = input_vals["img_comp"]
+    
+    sq_image = np.zeros((width,width))
+    
+    #Indizes für das Plateau berechnen       
+    start = int(((width - int(width*dw*crop)) // 2))
+    end = int((start + int(width*dw*crop)))
+
+    # Plateau mit Einsen füllen
+    sq_image[start:end, start:end] = hgt
+    
+    return sq_image
+    
+def homogeneous_illumination(input_vals):
+    
+    """Creates a map for a homogeneous illumination"""
+    
+    width = input_vals["f_width"]
+    
+    sq_image = np.ones((width,width))
+    
+    return sq_image
+    
+def any_image(image_path, input_vals):
+    """"Allows to load any image and perform the the noise overlay"""
+    
+    width = input_vals["f_width"]
+    comp_fac = input_vals["img_comp"]
+    
+    # Open the image
+    img = Image.open(image_path).convert('L')  # Convert to grayscale for (x, y) dimensions
+    
+    # Define the compression fraction (e.g., 0.5 = reduce to 50% of original size)
+    fraction = comp_fac
+    
+    # Get original size
+    original_width, original_height = img.size
+    
+    # Calculate new size
+    new_width = int(original_width * fraction)
+    new_height = int(original_height * fraction)
+    
+    # Resize image
+    comp_img = img.resize((new_width, new_height))
+    
+    comp_img = np.array(comp_img)
+    comp_img = comp_img/comp_img.max() #Scale to max val = 1
+    
+    #centercrop image
+    y,x = comp_img.shape
+    startx = x//2 - width//2
+    starty = y//2 - width//2  
+    comp_img = comp_img[starty:starty+width, startx:startx+width]
+    
+    return comp_img
+
+def bin_array_sum(array,bin_size):
+        """
+        Bins a quadratic numpy array by summing over non-overlapping bins.
+        
+        Parameters:
+            array (np.ndarray): Input 2D quadratic array.
+        
+        Returns:
+            np.ndarray: Binned array with summed values.
+        """
+        
+        x, y = array.shape
+        if x % bin_size != 0 or y % bin_size != 0:
+            raise ValueError("Array dimensions must be divisible by bin size.")
+        
+        reshaped = array.reshape(x // bin_size, bin_size, y // bin_size, bin_size)
+        return reshaped.sum(axis=(1, 3))
+
+def make_plots(new_vals):
+
+    """This is the main function to run the plot generation. It draws its
+    values from the values set in the GUI."""
+    
+    #extract variables
+    qe_eff = new_vals["qe_eff"]
+    full_well_cap = new_vals["full_well_cap"]
+    convF = new_vals["convF"]
+    export_choice = new_vals["export_choice"]
+    ron = new_vals["ron"]
+    mu_dark = new_vals["mu_dark"]
+    t_exp = new_vals["t_exp"]
+    dn_offset = new_vals["dn_offset"]
+    camera_name = new_vals["camera_name"]
+    img_comp = new_vals["img_comp"]
+    hist_scale = new_vals["hist_scale"]
+    lmda_nm = new_vals["lmda_nm"]
+    pxl_pitch = new_vals["pxl_pitch"]
+    
+    #plot "truth" left and simulated image right
+    fig, axs = plt.subplots(2, 2,
+                            figsize=(14,11),  #Groesse Abb
+                            gridspec_kw={'width_ratios': [1,1], 
+                                            'height_ratios': [2,1]}, #Groessenverhaeltnis
+                            )
+    
+    #Provide all hidden info on canvas as suptitle
+    fig.suptitle(t="Simulation {}: ".format(camera_name)+"\n"
+                    +"Read Noise: {} e- |".format(ron)
+                    +" Dark Current: {} e-/sec |".format(mu_dark)
+                    +" Exposure: {} s |".format(t_exp)
+                    +" QE: {}% @ {}nm |".format(round(qe_eff*100),lmda_nm)
+                    +" Conversion: {} e-/DN |".format(convF)
+                    +" Offset: {} DN |".format(round(dn_offset))
+                    +" Pixel: {} um Pitch @ {}x Crop".format(pxl_pitch,img_comp),
+                    #+"\n",
+                    fontsize='small',
+                    ha='left',
+                    y=0.98,
+                    x=0.02,
+                    font='monospace'
+                    )    
+
+    rcParams['font.weight'] = 'light'
+    rcParams["figure.autolayout"] = True
+    plt.style.use("classic")
+    
+    def truth_plot(phots, input_vals, plt_no=(0,0),
+                    pos=line_pos(new_vals), bf=bin_fac(new_vals)):       
+        """
+        Plots the Photon ground truth 2D distribution as a color map.
+        
+        Parameters:
+            phots: photon map as input quadratic 2D array
+            plt_no: index of plot on subplots
+            new_vals: camera parameter dict as input
+            pos: position of line profile indicator
+            bf: binning factor required for line profile positioning                 
+        """
+        
+        fw = input_vals["f_width"]
+        
+        phots = axs[plt_no].imshow(phots,
+                                cmap='rainbow',
+                                interpolation='none')
+        axs[plt_no].plot([0,fw],[pos*bf,pos*bf],'b-')
+        axs[plt_no].autoscale(False)
+        axs[plt_no].xaxis.tick_top()
+        axs[plt_no].set_xlabel("Input: Expected Photons per Phys. Pixel", labelpad=10)
+        #axs[plt_no].set_xlabel(r"Ground Truth", labelpad=10)
+        fig.colorbar(phots, fraction=0.046)
+    
+
+    def generate_sim_im_plot(img,input_vals, plt_no=(0,1)):
+        
+        """
+        Plots the simulate image in DN as a grayscale map with overlay for
+        blown out pixels.
+        
+        Parameters:
+            img: DN map as input quadratic 2D array
+            plt_no: index of plot on subplots
+        """
+        
+        fwc= input_vals["full_well_cap"]
+        cF= input_vals["convF"]
+        fw= input_vals["f_width"] 
+        #cam_name= input_vals["camera_name"]
+        
+        pos=line_pos(new_vals)
+        luts = lut_settings(new_vals)                         
+        
+        #Apply LUT limits if wanted
+        if luts[0] == 0:
+            v_max_img, v_min_img = img.max(),img.min()
+        else:
+            v_max_img, v_min_img = luts[1],luts[2]
+        
+        
+        #Identify every pixel that exceeds full well capacity...
+        mask = img > fwc*1/cF
+        overlay = np.zeros((*img.shape, 4))
+        overlay[mask] = [1,0,0,1]           
+
+        
+        #Gray Scale Image scaled according to LUT limits
+        img = axs[plt_no].imshow(frame_img,
+                            cmap = 'gray',
+                            interpolation='none',
+                            vmin=v_min_img,
+                            vmax=v_max_img,
+                            )
+        
+        #...and overlay in red
+        axs[plt_no].imshow(overlay,interpolation='none')
+        axs[plt_no].imshow(frame_img,alpha=0,interpolation='none',)
+        axs[plt_no].plot([0,fw],[pos,pos],'r-')
+        
+        #Plot Settings
+        axs[plt_no].xaxis.tick_top()
+        axs[plt_no].autoscale(False)
+        axs[plt_no].set_xlabel("Simulated Image / DN", labelpad=10)
+        #axs[plt_no].set_ylabel(r"{}".format(cam_name), labelpad=10)
+        fig.colorbar(img, fraction=0.046)                                
+
+    def generate_line_profile_plot(img,phots,input_vals, plt_no=(1,0)):
+        """
+        Plots the line profiles for truth (if converted to DN) and simulated image
+        
+        Parameters:
+            img: DN map as input quadratic 2D array
+            phots: photon map as input quadratic 2D array
+            plt_no: index of plot on subplots
+            pos: position of line profile indicator
+            bf: binning factor required for line profile positioning  
+            cF: conversion factor in e-/DN
+            md: dark current in e-/secs
+            te: exposure time in secs
+            dno: dark offset in DN to ensure no clipping at zero happens due to noise               
+        """
+        
+        pos = line_pos(new_vals)
+        cF = input_vals["convF"]
+        bf = bin_fac(new_vals)
+        md = input_vals["mu_dark"]
+        te = input_vals["t_exp"]
+        dno = input_vals["dn_offset"]
+        
+        #Line prof values (y) for simulated and truth image
+        line_prof_vals = img[pos].tolist()            
+        line_prof_vals_truth = ((1/cF*(phots[pos*bf]*qe_eff+md*te)+dno)*bf**2).tolist()
+        
+        #Line prof values (x) for simulated and truth image
+        row_no = [i for i in range(len(line_prof_vals))]
+        row_no_truth = [i/bin_fac(new_vals) for i in range(len(line_prof_vals_truth))]
+        
+        #Plot Settings
+        axs[plt_no].plot(row_no,line_prof_vals,'r-', label='Line Profile Simulated Image')
+        axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'b-', label='Truth to DN w/o Any Noise')
+        axs[plt_no].set_xlim([0,row_no[-1]])
+        axs[plt_no].yaxis.tick_left()
+        axs[plt_no].xaxis.tick_bottom()
+        axs[plt_no].set_xlabel(r"Line Profile Image / DN", labelpad=10)
+        axs[plt_no].xaxis.set_label_position('bottom')
+        axs[plt_no].set_ylabel(r"", labelpad=30)
+        axs[plt_no].legend(fontsize=8,frameon=False, loc="upper left")
+        
+    
+    def generate_histogram_plot(img,plt_no=(1,1), save_img=export_choice,
+                                scale=hist_scale):
+        """Plot histogramm mit ganzzahligen bins, da Wertebereich als DN bzw. Ganzzahl
+        
+        Parameters:
+            img: DN map as input quadratic 2D array
+            plt_no: index of plot position on canvas
+            scale: chose the scale of the y-axis 'Linear' or 'Logscale'
+        """
+        
+        #Make a list for the histogram y-vals with all pixel values
+        y_vals=[]
+        
+        for i in range(img.shape[1]):
+            for j in range(img.shape[1]):
+                y_vals.append(int(frame_img[i][j]))
+        
+        #Make a destinction for the histogramm settings to ensure a nice look        
+        if max(y_vals)-min(y_vals) > 2**9:
+            bin_no = 'auto'
+        else:
+            bin_no = [i for i in range(min(y_vals),max(y_vals),1)]
+        
+        #plot settings    
+        axs[plt_no].hist(y_vals,
+                            log=(scale=="Logscale"),
+                    bins = bin_no,
+                    density="True",
+                    color="steelblue",
+                    linewidth=0.0,
+                    histtype='stepfilled',
+                    )
+        axs[plt_no].yaxis.tick_left()
+        axs[plt_no].xaxis.tick_bottom()
+        axs[plt_no].xaxis.set_label_position('bottom')
+        #axs[plt_no].set_ylabel(r"Frequency", labelpad=0)
+        axs[plt_no].set_xlabel(r"Histogram / DN", labelpad=10)
+        axs[plt_no].autoscale(enable=True, axis='x', tight=False)
+        axs[plt_no].locator_params(axis='x', nbins=6)
+        
+        plt.tight_layout()
+        
+        plt.text(0.03, 0.97, "Mean: "+str(round(np.mean(y_vals),1)),
+                    transform=plt.gca().transAxes,
+                    fontsize=12, verticalalignment='top',
+                    horizontalalignment='left')
+
+        plt.text(0.03, 0.9, "StDv: "+str(round(np.std(y_vals),1)),
+                    transform=plt.gca().transAxes,
+                    fontsize=12, verticalalignment='top',
+                    horizontalalignment='left')
+        
+        plt.show()
+
+        
+        if export_choice == "Simulation Summary PDF":
+            
+            #plt.savefig('Export_image.png', dpi=300)
+
+            buf = io.BytesIO()
+            fig.savefig(buf, format="pdf")
+            buf.seek(0)
+
+            st.sidebar.download_button(
+            "DOWNLOAD",
+            data=buf,
+            file_name="Image_Simulation.pdf",
+            mime="application/pdf"
+                )
+                       
+
+    def get_base_image(input_vals,path="'image_pco.jpg'"):
+            """
+            Draw the image that shall be superimposed with noise from a 
+            selection.
+            
+            Parameter:
+                - input vals: import all important camera spex as dict
+                - path: data path for choice and grabbing data from an image file
+            """
+                        
+            base_img = input_vals["base_image"]
+            f_width = input_vals["f_width"]
+            img_comp = input_vals["img_comp"]
+            
+            if base_img == "Gaussian":
+                return(gaussian_array(f_width,f_width,f_width/5*img_comp) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
+            elif base_img == "Homogeneous":
+                return(homogeneous_illumination(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
+            elif base_img == "Square":
+                return(square_overlay(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
+            elif base_img == "Microscopy Example":
+                return(any_image('import_images/image_bio.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
+            elif base_img == "Astronomy Example":
+                return(any_image('import_images/image_space.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
+            elif base_img == "Import 'my_image.png'":
+                return(any_image('import_images/my_image.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+
+    def safe_as_tiff(sim_im):
+            """
+            This function simply saves the outputimage as a TIFF that can
+            later be opened in for example FIJI for an in depth comparison.
+            """
+            
+            im_export = Image.fromarray(sim_im)
+
+            buf = io.BytesIO()
+            im_export.save(buf, format="TIFF")
+            buf.seek(0)
+
+            # Create download button
+            st.sidebar.download_button(
+            label="DOWNLOAD",
+            data=buf,
+            file_name="pco_simulated_image.tiff",
+            mime="image/tiff"
+            )  
+         
+
+    #Start with generating the arrays for the base and noisy image
+    frame_phots = get_base_image(new_vals)
+    frame_img = bin_array_sum(rand_pG(frame_phots*qe_eff,new_vals), bin_fac(new_vals)) 
+    
+    #carry out binning
+    #apply_binning_mode(frame_phots, new_vals) #delete?
+    
+    #cut image data according to full well capacity at limit & consider offset 
+    frame_img[frame_img>(full_well_cap*1/convF)+dn_offset-1] = int(
+        full_well_cap*1/convF)+1+dn_offset
+            
+    ####Plot data ========================================================= 
+    
+    #Top left: Photon Map .........................................................
+    truth_plot(frame_phots, new_vals)
+    
+    ##Top Right: Noisy Image data ....................................................    
+    generate_sim_im_plot(frame_img, new_vals)   
+    
+    ###Bottom left: line plot ..................................................   
+    generate_line_profile_plot(frame_img, frame_phots, new_vals)
+        
+    ####Bottom Right: histogramm .......................................................
+    generate_histogram_plot(frame_img) 
+
+    if export_choice == "Simulated Image as TIFF":
+            safe_as_tiff(frame_img)
+    
+    st.pyplot(fig) 
+
+def calc_snr(phi=1, t_exp=1, bin_fac=0, qe=1,
+                 pxl_pitch=6.5, ron=0, mu_d=0, fwc=100000):
+        
+        """
+        Parameter:
+            
+            phi (float):    photon flux density in ph/(um)²/sec
+            t_exp (float):  exposure_time in seconds
+            bin_fac (int):  binning factor applied 2: 0=1x1; 1=2x2, 2=4x4
+            
+        """
+        
+        signal_e = qe * (phi*t_exp*pxl_pitch**2)
+        n_dark = (mu_d*t_exp)**0.5
+        n_shot = (signal_e)**0.5
+        n_tot = (n_dark**2+n_shot**2+ron**2)**0.5
+        snr = signal_e / n_tot
+        
+        return [snr, signal_e, n_tot, n_dark, n_shot, bin_fac]
+
+def snr_info(input_vals):
+    
+    """
+    Returns a string that provides info on the SNR according to current settings.
+    """
+    
+    phi_pfd_max = input_vals["phi_pfd_max"]
+    t_exp = input_vals["t_exp"]
+    pxl_pitch = input_vals["pxl_pitch"]
+    ron = input_vals["ron"]
+    mu_dark = input_vals["mu_dark"]
+    full_well_cap = input_vals["full_well_cap"]
+    qe_eff = input_vals["qe_eff"]
+    bin_factor = input_vals["bin_factor"]
+    
+    snr_data = calc_snr(phi_pfd_max, t_exp, bin_factor, qe_eff, 
+                    pxl_pitch, ron, mu_dark, full_well_cap)
+
+    my_snr_info = {"Photon Flux Density [ph/(um)²/sec]": phi_pfd_max,
+                "Signal-to-Noise Ratio SNR": snr_data[0],
+                "SNR w/ binning": snr_data[0]*2**snr_data[5], 
+                "Mean Signal [e-/pxl]": snr_data[1],
+                "Total Noise [e-/pxl]": snr_data[2],
+                "Dark Noise Contribution [e-/pxl]": snr_data[3],
+                "Shot Noise Contribution [e-/pxl]": snr_data[4],
+                "Read Noise Contribution [e-/pxl]": ron}
+    
+    return(my_snr_info)        
+
+
+values = make_sidebar()
+
+st.title("pco.calculator: Image Simulation")
+
+st.info("""
+            With this little tool you can superimpose an input image according to camera performance and 
+            acquisition parameters such as exposure time, illumination situation and all sources of noise 
+            such as read noise, photon noise and dark noise. Simply use the sidebar to make your settings and
+            launch the calculator via the **Run Simulation** button.
+        
+            Histogram and line profile data are also given to quantify the impact of different imaging settings. 
+            The outcome data can be stored in different formats, i.e. as PDF, 16-bit TIFF or as an animated GIF.
+            """)
+
+
+launch_button = st.button("Run Simulation")
+
+if launch_button:
+
+    st.subheader("Image Simulation Summary")
+    make_plots(values)
+    
+    st.markdown("**Figure 1**: Simulation of a square shaped ROI for an (s)CMOS type of camera. The result is a function of the "\
+                "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
+                "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
+                "tool is a nice assistance for determining a suitable camera for a given experiment.")
+
+    st.subheader("Signal-to-Noise Performance")
+    st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
+            "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
+            "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
+            "well capacity of the sensor.")
+
+    df = pd.DataFrame.from_dict(
+        {k: f"{v:.2f}" for k, v in snr_info(values).items()},
+        orient="index", columns=["Value"])
+    st.table(df)
+
+
+# example: pass to your simulation / plotting
+# make_plots(values)
+
+# quick debug
+#st.write(values)
