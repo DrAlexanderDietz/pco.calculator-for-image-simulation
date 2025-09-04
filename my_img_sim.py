@@ -775,8 +775,7 @@ def make_plots(new_vals):
     if export_choice == "Simulated Image as TIFF":
             safe_as_tiff(frame_img)
 
-    # Show in Streamlit
-    st.pyplot(fig)
+    return fig    
 
 def calc_snr(phi=1, t_exp=1, bin_fac=0, qe=1,
                  pxl_pitch=6.5, ron=0, mu_d=0, fwc=100000):
@@ -860,33 +859,46 @@ st.info("""
 # Buttonpress for Simulation
 launch_button = st.button("Run Simulation", use_container_width=True)
 
+#Launch Simulation upon button press and...
+st.subheader("Image Simulation Summary")
+
+# Initialize storage for the figure if not already there
+if "fig" not in st.session_state:
+    st.session_state.fig = None
+    st.text("📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ HIT RUN SIMULATION 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 ")
+
+# Button to update the plot
 if launch_button:
+    st.session_state.fig = make_plots(values)
 
-    st.subheader("Image Simulation Summary")
-    
-    #Launch Simulation upon button press and...
-    
-    make_plots(values) #...draw figure to the dashboard
-    
-    #...print some explanatory text
-    st.markdown("**Figure 1**: Simulation of a square shaped ROI for an (s)CMOS type of camera. The result is a function of the "\
-                "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
-                "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
-                "tool is a nice assistance for determining a suitable camera for a given experiment.")
+# Display the figure (only if one exists)
+if st.session_state.fig is not None:
+    st.pyplot(st.session_state.fig)
 
-    st.subheader("Signal-to-Noise Performance")
-    
-    st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
-            "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
-            "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
-            "well capacity of the sensor.")
-    
-    #...show a signal do noise ratio consideration
-    df = pd.DataFrame.from_dict(
-        {k: f"{v:.4f}" for k, v in snr_info(values).items()},
-        orient="index", columns=["Value"])
-    
-    st.table(df)
+#if launch_button:
+#    st.pyplot(make_plots(values)) #...draw figure to the dashboard
+
+
+#if launch_button:   
+#...print some explanatory text
+st.markdown("**Figure 1**: Simulation of a square shaped ROI for an (s)CMOS type of camera. The result is a function of the "\
+            "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
+            "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
+            "tool is a nice assistance for determining a suitable camera for a given experiment.")
+
+st.subheader("Signal-to-Noise Performance")
+
+st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
+        "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
+        "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
+        "well capacity of the sensor.")
+
+#...show a signal do noise ratio consideration
+df = pd.DataFrame.from_dict(
+    {k: f"{v:.4f}" for k, v in snr_info(values).items()},
+    orient="index", columns=["Value"])
+
+st.table(df)
 
 
 # quick debug
