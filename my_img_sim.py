@@ -163,7 +163,7 @@ def make_sidebar():
             key="crop",
             help="Application of crop allow to compare different pixel sizes. If you for example"\
             " want to compare 4.5 µm pixels of the pco.edge 10 bi with the 6.5 µm pixels of the" \
-            " pco.edge 4.2, simply apply a 71 percent 'crop' (=4.6/6.5) to the larger pixels to adapt the field" \
+            " pco.edge 4.2, simply apply a 71% 'crop' (=4.6/6.5) to the larger pixels to adapt the field" \
             " of view and effectively 'zoom out' in the image."
             )
     else:
@@ -686,11 +686,13 @@ def make_plots(new_vals):
             fig.savefig(buf, format="pdf")
             buf.seek(0)
 
-            st.sidebar.download_button(
-            "DOWNLOAD",
+
+            st.download_button(
+            "DOWNLOAD SUMMARY PDF",
             data=buf,
             file_name="Image_Simulation.pdf",
-            mime="application/pdf"
+            mime="application/pdf",
+            use_container_width=True,
                 )
                        
 
@@ -739,11 +741,12 @@ def make_plots(new_vals):
             buf.seek(0)
 
             # Create download button
-            st.sidebar.download_button(
-            label="DOWNLOAD",
+            st.download_button(
+            label="DOWNLOAD TIFF",
             data=buf,
             file_name="pco_simulated_image.tiff",
-            mime="image/tiff"
+            mime="image/tiff",
+            use_container_width=True,
             )  
          
 
@@ -751,13 +754,10 @@ def make_plots(new_vals):
     frame_phots = get_base_image(new_vals)
     frame_img = bin_array_sum(rand_pG(frame_phots*qe_eff,new_vals), bin_fac(new_vals)) 
     
-    #carry out binning
-    #apply_binning_mode(frame_phots, new_vals) #delete?
-    
     #cut image data according to full well capacity at limit & consider offset 
     frame_img[frame_img>(full_well_cap*1/convF)+dn_offset-1] = int(
         full_well_cap*1/convF)+1+dn_offset
-            
+
     ####Plot data ========================================================= 
     
     #Top left: Photon Map .........................................................
@@ -774,8 +774,9 @@ def make_plots(new_vals):
 
     if export_choice == "Simulated Image as TIFF":
             safe_as_tiff(frame_img)
-    
-    st.pyplot(fig) 
+
+    # Show in Streamlit
+    st.pyplot(fig)
 
 def calc_snr(phi=1, t_exp=1, bin_fac=0, qe=1,
                  pxl_pitch=6.5, ron=0, mu_d=0, fwc=100000):
@@ -816,7 +817,12 @@ def snr_info(input_vals):
                     pxl_pitch, ron, mu_dark, full_well_cap)
 
     my_snr_info = {"Photon Flux Density [ph/(um)²/sec]": phi_pfd_max,
-                "Signal-to-Noise Ratio SNR": snr_data[0],
+                   "Quantum Efficiency [%]": qe_eff*100,
+                   "Pixel Pitch [um]:" : pxl_pitch,
+                   "Exposure Time [sec]:" :  t_exp,
+                   "Binning Level" : bin_factor,
+                   "---":0,
+                " Signal-to-Noise Ratio SNR": snr_data[0],
                 "SNR w/ binning": snr_data[0]*2**snr_data[5], 
                 "Mean Signal [e-/pxl]": snr_data[1],
                 "Total Noise [e-/pxl]": snr_data[2],
@@ -830,7 +836,14 @@ def snr_info(input_vals):
 
 values = make_sidebar()
 
-st.image("Resources/EXClogo.png", use_container_width=True)
+# Create two columns
+col1, col2 = st.columns([2.2,5.2])
+
+with col2:
+    st.image("Resources/EXClogo.png", use_container_width=True)
+
+with col1: 
+    st.image("Resources/edge_photo.png", use_container_width=True)
 
 st.title("pco.calculator: Image Simulation")
 
@@ -844,8 +857,8 @@ st.info("""
         appears after succesfull simulation lauch in the sidebar, to pull the file to your **Downloads** directory.
         """)
 
-
-launch_button = st.button("Run Simulation")
+# Buttonpress for Simulation
+launch_button = st.button("Run Simulation", use_container_width=True)
 
 if launch_button:
 
@@ -870,7 +883,7 @@ if launch_button:
     
     #...show a signal do noise ratio consideration
     df = pd.DataFrame.from_dict(
-        {k: f"{v:.2f}" for k, v in snr_info(values).items()},
+        {k: f"{v:.4f}" for k, v in snr_info(values).items()},
         orient="index", columns=["Value"])
     
     st.table(df)
@@ -878,4 +891,3 @@ if launch_button:
 
 # quick debug
 #st.write(values)
-
