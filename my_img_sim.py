@@ -687,7 +687,7 @@ def make_plots(new_vals):
             buf.seek(0)
 
 
-            st.download_button(
+            st.sidebar.download_button(
             "DOWNLOAD SUMMARY PDF",
             data=buf,
             file_name="Image_Simulation.pdf",
@@ -741,7 +741,7 @@ def make_plots(new_vals):
             buf.seek(0)
 
             # Create download button
-            st.download_button(
+            st.sidebar.download_button(
             label="DOWNLOAD TIFF",
             data=buf,
             file_name="pco_simulated_image.tiff",
@@ -903,3 +903,4 @@ st.table(df)
 
 # quick debug
 #st.write(values)
+
