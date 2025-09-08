@@ -164,7 +164,7 @@ def make_sidebar():
             help="Application of crop allow to compare different pixel sizes. If you for example"\
             " want to compare 4.5 µm pixels of the pco.edge 10 bi with the 6.5 µm pixels of the" \
             " pco.edge 4.2, simply apply a 71% 'crop' (=4.6/6.5) to the larger pixels to adapt the field" \
-            " of view and effectively 'zoom out' in the image."
+            " of view and effectively 'zoom out' in the image. The initial FoV is shown as green box."
             )
     else:
         st.sidebar.slider("Pixel Pitch Crop [%]",
@@ -194,7 +194,7 @@ def make_sidebar():
     exposure_time = st.sidebar.text_input("Exposure Time / sec", "1")
 
     # Binning options
-    bin_values_list = ["None", "2x2", "4x4"]
+    bin_values_list = ["1x1", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
 
     # ---------- ILLUMINATION ----------
@@ -240,18 +240,18 @@ def make_sidebar():
     qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
     step=0.01,disabled=disable_widget)
     rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
-    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3])
+    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
     fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
     convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
     pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
     dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
 
     # ---------- SIMULATION CONTROL ----------
-    st.sidebar.subheader("SIMULATION CONTROL")
+    st.sidebar.subheader("SIMULATION DOWNLOAD")
 
     #choice for download options
     save_values_list = ["Simulated Image as TIFF", "Simulation Summary PDF"]
-    export_option = st.sidebar.selectbox("Image Export Options", save_values_list)
+    export_option = st.sidebar.selectbox("Image Export Format", save_values_list)
 
     #is SCMOS is choice use slider/input setting, otherwise pull datasheet values
     if camera_model == "sCMOS":
@@ -502,6 +502,15 @@ def make_plots(new_vals):
     rcParams["figure.autolayout"] = True
     plt.style.use("classic")
     
+    def crop_window(fw, crop, plt_no):
+        
+        if crop != 1:
+            crf_max = fw*(crop+(1-crop)/2)
+            crf_min = fw*(1-crop)/2
+            axs[plt_no].plot([crf_min,crf_max,crf_max,crf_min,crf_min],
+                            [crf_min,crf_min,crf_max,crf_max,crf_min],
+                            '-', color='limegreen', alpha=1)
+
     def truth_plot(phots, input_vals, plt_no=(0,0),
                     pos=line_pos(new_vals), bf=bin_fac(new_vals)):       
         """
@@ -516,7 +525,8 @@ def make_plots(new_vals):
         """
         
         fw = input_vals["f_width"]
-        
+        crop = input_vals["img_comp"]
+
         phots = axs[plt_no].imshow(phots,
                                 cmap='rainbow',
                                 interpolation='none')
@@ -524,6 +534,10 @@ def make_plots(new_vals):
         axs[plt_no].autoscale(False)
         axs[plt_no].xaxis.tick_top()
         axs[plt_no].set_xlabel("Input: Expected Photons per Phys. Pixel", labelpad=10)
+        axs[plt_no].minorticks_on()
+        
+        crop_window(fw, crop, (0,0))
+            
         #axs[plt_no].set_xlabel(r"Ground Truth", labelpad=10)
         fig.colorbar(phots, fraction=0.046)
     
@@ -541,7 +555,8 @@ def make_plots(new_vals):
         
         fwc= input_vals["full_well_cap"]
         cF= input_vals["convF"]
-        fw= input_vals["f_width"] 
+        fw= input_vals["f_width"]
+        crop = input_vals["img_comp"]
         #cam_name= input_vals["camera_name"]
         
         pos=line_pos(new_vals)
@@ -572,13 +587,15 @@ def make_plots(new_vals):
         axs[plt_no].imshow(overlay,interpolation='none')
         axs[plt_no].imshow(frame_img,alpha=0,interpolation='none',)
         axs[plt_no].plot([0,fw],[pos,pos],'r-')
-        
+
         #Plot Settings
         axs[plt_no].xaxis.tick_top()
         axs[plt_no].autoscale(False)
         axs[plt_no].set_xlabel("Simulated Image / DN", labelpad=10)
         #axs[plt_no].set_ylabel(r"{}".format(cam_name), labelpad=10)
-        fig.colorbar(img, fraction=0.046)                                
+        fig.colorbar(img, fraction=0.046) 
+        
+        crop_window(fw,crop, (0,1))                               
 
     def generate_line_profile_plot(img,phots,input_vals, plt_no=(1,0)):
         """
@@ -675,7 +692,7 @@ def make_plots(new_vals):
                     fontsize=12, verticalalignment='top',
                     horizontalalignment='left')
         
-        plt.show()
+        #plt.show()
 
         #draw the downloadbutton and award it functionality to download the pdf to the above plots
         if export_choice == "Simulation Summary PDF":
@@ -692,7 +709,7 @@ def make_plots(new_vals):
             data=buf,
             file_name="Image_Simulation.pdf",
             mime="application/pdf",
-            use_container_width=True,
+            width='stretch',
                 )
                        
 
@@ -746,7 +763,7 @@ def make_plots(new_vals):
             data=buf,
             file_name="pco_simulated_image.tiff",
             mime="image/tiff",
-            use_container_width=True,
+            width='stretch',
             )  
          
 
@@ -839,10 +856,10 @@ values = make_sidebar()
 col1, col2 = st.columns([2.2,5.2])
 
 with col2:
-    st.image("Resources/EXClogo.png", use_container_width=True)
+    st.image("Resources/EXClogo.png", width='stretch')
 
 with col1: 
-    st.image("Resources/edge_photo.png", use_container_width=True)
+    st.image("Resources/edge_photo.png", width='stretch')
 
 st.title("pco.calculator: Image Simulation")
 
@@ -857,7 +874,7 @@ st.info("""
         """)
 
 # Buttonpress for Simulation
-launch_button = st.button("Run Simulation", use_container_width=True)
+launch_button = st.button("Run Simulation", width='stretch')
 
 #Launch Simulation upon button press and...
 st.subheader("Image Simulation Summary")
@@ -865,23 +882,19 @@ st.subheader("Image Simulation Summary")
 # Initialize storage for the figure if not already there
 if "fig" not in st.session_state:
     st.session_state.fig = None
-    st.text("📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ HIT RUN SIMULATION 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 🖼️ 📷 ")
 
 # Button to update the plot
 if launch_button:
     st.session_state.fig = make_plots(values)
+    
 
 # Display the figure (only if one exists)
 if st.session_state.fig is not None:
     st.pyplot(st.session_state.fig)
 
-#if launch_button:
-#    st.pyplot(make_plots(values)) #...draw figure to the dashboard
-
-
-#if launch_button:   
+  
 #...print some explanatory text
-st.markdown("**Figure 1**: Simulation of a square shaped ROI for an (s)CMOS type of camera. The result is a function of the "\
+st.markdown("**Result:** Square shaped ROI for a virtual (s)CMOS type of camera. The simulated image is a function of the "\
             "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
             "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
             "tool is a nice assistance for determining a suitable camera for a given experiment.")
@@ -903,4 +916,3 @@ st.table(df)
 
 # quick debug
 #st.write(values)
-
