@@ -618,8 +618,8 @@ def make_plots(new_vals):
         bf = bin_fac(new_vals)
         md = input_vals["mu_dark"]
         te = input_vals["t_exp"]
-        dno = input_vals["dn_offset"]
-        
+        dno = input_vals["dn_offset"]       
+
         #Line prof values (y) for simulated and truth image
         line_prof_vals = img[pos].tolist()            
         line_prof_vals_truth = ((1/cF*(phots[pos*bf]*qe_eff+md*te)+dno)*bf**2).tolist()
@@ -641,7 +641,7 @@ def make_plots(new_vals):
         
     
     def generate_histogram_plot(img,plt_no=(1,1), save_img=export_choice,
-                                scale=hist_scale):
+                                scale=hist_scale, new_vals=new_vals):
         """Plot histogramm mit ganzzahligen bins, da Wertebereich als DN bzw. Ganzzahl
         
         Parameters:
@@ -650,6 +650,14 @@ def make_plots(new_vals):
             scale: chose the scale of the y-axis 'Linear' or 'Logscale'
         """
         
+        luts = lut_settings(new_vals)                         
+
+        #Apply LUT limits if wanted
+        if luts[0] == 0:
+            v_max_img, v_min_img = img.max(),img.min()
+        else:
+            v_max_img, v_min_img = luts[1],luts[2]
+
         #Make a list for the histogram y-vals with all pixel values
         y_vals=[]
         
@@ -664,7 +672,7 @@ def make_plots(new_vals):
             bin_no = [i for i in range(min(y_vals),max(y_vals),1)]
         
         #plot settings    
-        axs[plt_no].hist(y_vals,
+        my_hist, bins, patches = axs[plt_no].hist(y_vals,
                             log=(scale=="Logscale"),
                     bins = bin_no,
                     density="True",
@@ -672,6 +680,9 @@ def make_plots(new_vals):
                     linewidth=0.0,
                     histtype='stepfilled',
                     )
+        max_val= my_hist.max()
+
+        axs[plt_no].plot(np.linspace(v_min_img,v_max_img,100),np.linspace(0,max_val,100),'-',color='black', alpha=0.5)
         axs[plt_no].yaxis.tick_left()
         axs[plt_no].xaxis.tick_bottom()
         axs[plt_no].xaxis.set_label_position('bottom')
@@ -679,6 +690,7 @@ def make_plots(new_vals):
         axs[plt_no].set_xlabel(r"Histogram / DN", labelpad=10)
         axs[plt_no].autoscale(enable=True, axis='x', tight=False)
         axs[plt_no].locator_params(axis='x', nbins=6)
+        axs[plt_no].set_xlim(v_min_img,v_max_img)
         
         plt.tight_layout()
         
@@ -695,7 +707,7 @@ def make_plots(new_vals):
         #plt.show()
 
         #draw the downloadbutton and award it functionality to download the pdf to the above plots
-        if export_choice == "Simulation Summary PDF":
+        if save_img == "Simulation Summary PDF":
             
             #plt.savefig('Export_image.png', dpi=300)
 
