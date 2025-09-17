@@ -147,8 +147,16 @@ def make_sidebar():
     # Dropdown for image selection
     dd_img_options = [
         "Gaussian", "Square", "Homogeneous", "Microscopy Example",
-        "Astronomy Example", "Camera Testchart"]
+        "Astronomy Example", "Camera Testchart", "Upload Image"]
     dd_img = st.sidebar.selectbox("Choose Image", dd_img_options)
+
+    if dd_img == "Upload Image":
+        upl_file_item = st.sidebar.file_uploader(
+        "Upload any Image - Please see info",
+        type=["png", "jpg", "jpeg"],
+        key="uploaded_file",
+        help="Please use only images that are larger than 1064 x 1064 pxl!"
+        )
 
     # --- Slider with callbacks ---
     st.sidebar.slider("$log_2$(Image width)",
@@ -756,7 +764,10 @@ def make_plots(new_vals):
             
             elif base_img == "Camera Testchart":
                 return(any_image('import_images/my_image.PNG',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
-
+            
+            elif base_img == "Upload Image":
+                return(any_image(st.session_state.uploaded_file, input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+               
     def safe_as_tiff(sim_im):
             """
             This function simply saves the outputimage as a TIFF that can
@@ -877,12 +888,13 @@ st.title("pco.calculator: Image Simulation")
 
 st.info("""
         With this little tool you can superimpose an input image according to camera performance and 
-        acquisition parameters such as exposure time, illumination situation and all sources of noise 
-        such as read noise, photon noise and dark noise. Simply use the sidebar to make your settings and
+        acquisition parameters such as exposure time, illumination situation and all major sources of noise
+        in CMOS image sensors: read noise, photon noise and dark noise. Simply use the sidebar to make your settings and
         launch the calculator via the **Run Simulation** button.
-        Histogram and line profile data are also given to quantify the impact of different imaging settings. 
-        The outcome data can be stored in different as PDF or 16-bit TIFF. Use the **DOWNLOAD** button, that 
-        appears after succesfull simulation lauch in the sidebar, to pull the file to your **Downloads** directory.
+
+        Histogram and line profile data are also given for illustrating the impact of different settings on the result image. 
+        The outcome data can be stored either as PDF summary or 16-bit TIFF (image only). To safe the virtual camera image
+        simply use the **DOWNLOAD** button, that appears  in the sidebar after pressing **Run Simulation**.
         """)
 
 # Buttonpress for Simulation
@@ -897,7 +909,15 @@ if "fig" not in st.session_state:
 
 # Button to update the plot
 if launch_button:
-    st.session_state.fig = make_plots(values)
+    #to ensure the program doesn't crash when a too small image is loaded...
+    try:
+        #try to run program
+        display_figure = make_plots(values)
+        st.session_state.fig = display_figure
+    except:
+        #...and display an exception warning text if an error is encountered!
+        st.write("  :no_entry_sign: :x: **Ooops! Something went wrong! I can't generate an image! Please try different settings!** :x: :no_entry_sign:  ")
+        st.session_state.fig = None
     
 
 # Display the figure (only if one exists)
