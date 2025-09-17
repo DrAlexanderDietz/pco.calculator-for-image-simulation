@@ -1,3 +1,4 @@
+pco.dimax 3.6 ST
 wavelength[nm] QE[%]
 329	1,73
 336	9,57
