@@ -25,5 +25,7 @@ pco.panda 4.2 bi;pco.panda 4.2 bi - LLM;6.50;1800.00;1.10;5.00;32.00; 0.03; 1200
 pco.panda 4.2 bi UV;pco.panda 4.2 bi UV;6.50;48000.00;1.80;5.00;32.00; 0.8; 100
 pco.panda 4.2 bi UV;pco.panda 4.2 bi UV - LLM;6.50;1800.00;1.10;5.00;32.00; 0.03; 1200
 pco.panda 26;pco.panda 26;2.50;4500.00;2.30;2.00;32.00; 1.1; 60
+pco.dimax 3.6 ST;pco.dimax 3.6 ST - LowGain;11;60000.00;65.00;250.00;25.00;70.5;20
 Perfect Camera;Perfect Camera;6.50;65436.00;0;0;-25.00; 1; 100
 sCMOS;sCMOS;6.50;30000.00;0.80;0.60;7.00; 0.5; 100
+
