@@ -16,7 +16,7 @@ import io
 # -----------------------------
 
 st.set_page_config(
-    page_title="My App",
+    page_title="pco.calculator Image Simulation",
     page_icon="Resources/Flash_comp.png"   # Path to a local .png, .jpg, or .ico file
 )
 
@@ -962,3 +962,4 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
