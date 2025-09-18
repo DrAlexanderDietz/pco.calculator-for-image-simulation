@@ -15,6 +15,11 @@ import io
 # Utility functions 
 # -----------------------------
 
+st.set_page_config(
+    page_title="My App",
+    page_icon="Resources/Flash_comp.png"   # Path to a local .png, .jpg, or .ico file
+)
+
 def make_sidebar():
     """Calling this function draws the sidebar with all its settings and parameters and returns their values as dict."""
 
@@ -944,6 +949,15 @@ df = pd.DataFrame.from_dict(
     orient="index", columns=["Value"])
 
 st.table(df)
+
+st.markdown(
+    """
+    <div style="text-align: center; padding: 20px; color: gray; font-size: 14px;">
+        © 2025 Excelitas Technologies
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # quick debug
