@@ -515,11 +515,11 @@ def make_plots(new_vals):
     rcParams["figure.autolayout"] = True
     plt.style.use("classic")
     
-    def crop_window(fw, crop, plt_no):
+    def crop_window(fw, crop, plt_no, binf=0):
         
         if crop != 1:
-            crf_max = fw*(crop+(1-crop)/2)
-            crf_min = fw*(1-crop)/2
+            crf_max = fw*(crop+(1-crop)/2)/(2**binf)
+            crf_min = fw*(1-crop)/(2**binf)/2
             axs[plt_no].plot([crf_min,crf_max,crf_max,crf_min,crf_min],
                             [crf_min,crf_min,crf_max,crf_max,crf_min],
                             '-', color='limegreen', alpha=1)
@@ -570,6 +570,7 @@ def make_plots(new_vals):
         cF= input_vals["convF"]
         fw= input_vals["f_width"]
         crop = input_vals["img_comp"]
+        bin_fac = input_vals["bin_factor"]
         #cam_name= input_vals["camera_name"]
         
         pos=line_pos(new_vals)
@@ -608,7 +609,7 @@ def make_plots(new_vals):
         #axs[plt_no].set_ylabel(r"{}".format(cam_name), labelpad=10)
         fig.colorbar(img, fraction=0.046) 
         
-        crop_window(fw,crop, (0,1))                               
+        crop_window(fw,crop, (0,1), bin_fac)                               
 
     def generate_line_profile_plot(img,phots,input_vals, plt_no=(1,0)):
         """
