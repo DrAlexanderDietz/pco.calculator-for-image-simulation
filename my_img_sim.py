@@ -780,7 +780,7 @@ def make_plots(new_vals):
                 return(any_image('import_images/image_space.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Camera Testchart":
-                return(any_image('import_images/my_image.PNG',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+                return(any_image('import_images/test-chart-eia.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Upload Image":
                 return(any_image(st.session_state.uploaded_file, input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
@@ -974,6 +974,7 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
 
 
 
