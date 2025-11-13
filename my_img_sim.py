@@ -153,7 +153,9 @@ def make_sidebar():
     dd_img_options = [
         "Gaussian", "Square", "Homogeneous", "Microscopy Example",
         "Astronomy Example", "Camera Testchart", "Upload Image"]
-    dd_img = st.sidebar.selectbox("Choose Image", dd_img_options)
+    dd_img = st.sidebar.selectbox("Choose Image",
+                                dd_img_options,
+                                help="Example image options may be based on 8-bit image data!")
 
     if dd_img == "Upload Image":
         upl_file_item = st.sidebar.file_uploader(
@@ -963,4 +965,5 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
 
