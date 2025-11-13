@@ -636,6 +636,14 @@ def make_plots(new_vals):
         te = input_vals["t_exp"]
         dno = input_vals["dn_offset"]       
 
+        luts = lut_settings(new_vals)                         
+
+        #Apply LUT limits if wanted
+        if luts[0] == 0:
+            v_max_img, v_min_img = img.max(),img.min()
+        else:
+            v_max_img, v_min_img = luts[1],luts[2]
+            
         #Line prof values (y) for simulated and truth image
         line_prof_vals = img[pos].tolist()            
         line_prof_vals_truth = ((1/cF*(phots[pos*bf]*qe_eff+md*te)+dno)*bf**2).tolist()
@@ -648,6 +656,7 @@ def make_plots(new_vals):
         axs[plt_no].plot(row_no,line_prof_vals,'r-', label='Line Profile Simulated Image')
         axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'b-', label='Truth to DN w/o Any Noise')
         axs[plt_no].set_xlim([0,row_no[-1]])
+        axs[plt_no].set_ylim([v_min_img,v_max_img]) #new
         axs[plt_no].yaxis.tick_left()
         axs[plt_no].xaxis.tick_bottom()
         axs[plt_no].set_xlabel(r"Line Profile Image / DN", labelpad=10)
@@ -965,5 +974,6 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
 
 
