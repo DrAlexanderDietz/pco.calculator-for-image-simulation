@@ -19,7 +19,7 @@ pco.edge 5.5;pco.edge 5.5 USB - RS;6.50;30000;1.00;0.50;5.00; 0.46; 100
 pco.edge 5.5;pco.edge 5.5 USB - GS;6.50;30000;2.30;0.80;5.00; 0.46; 100
 pco.edge 5.5;pco.edge 3.1 USB - RS;6.50; 30000; 1.1; 0.5; 5.00; 0.46; 100 
 pco.panda 26;pco.panda 26;2.50;4500;2.30;2.00;32.00; 1.1; 60
-pco.edge 26;pco.pixelfly 26 CLHS;2.5;3400;2.6;3.2;35;0.9 
+pco.edge 26;pco.pixelfly 26 CLHS;2.5;3400;2.6;3.2;35;0.9; 60 
 pco.edge 26;pco.edge 26 USB;2.50;4500;2.30;0.09;-10.00; 1.1; 60
 pco.edge 26;pco.edge 26 CLHS;2.50;4000;3.40;0.40;15.00; 4.05; 25
 pco.edge 10 bi;pco.pixelfly 10 bi CLHS;4.6;14000;1.2;6.2;35.0;0.214;100
@@ -33,3 +33,4 @@ pco.edge 10 bi;pco.edge 9.4 bi CLHS - SlowScan;4.60;7000;0.30;0.40;10.00; 0.11; 
 pco.dimax 3.6 ST;pco.dimax 3.6 ST - LowGain;11;60000;65.00;250.00;25.00;70.5;20
 Perfect Camera;Perfect Camera;6.50;99999;0;0;0; 1; 100
 sCMOS;sCMOS;6.50;30000;0.80;0.60;7.00; 0.5; 100
+
