@@ -690,12 +690,12 @@ def make_plots(new_vals):
             for j in range(img.shape[1]):
                 y_vals.append(int(frame_img[i][j]))
         
-        #Make a destinction for the histogramm settings to ensure a nice look        
-        if max(y_vals)-min(y_vals) > 2**9:
+        #Make a destinction for the histogramm settings to ensure a nice look and limit data x-axis data points to 500       
+        if v_max_img - v_min_img > 500:
             bin_no = 'auto'
         else:
-            bin_no = [i for i in range(min(y_vals),max(y_vals),1)]
-        
+            bin_no = [i for i in range(int(v_min_img),int(v_max_img),1)]
+
         #plot settings    
         my_hist, bins, patches = axs[plt_no].hist(y_vals,
                             log=(scale=="Logscale"),
