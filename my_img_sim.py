@@ -948,19 +948,19 @@ st.markdown("**Result:** Square shaped ROI for a virtual (s)CMOS type of camera.
             "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
             "tool is a nice assistance for determining a suitable camera for a given experiment.")
 
-st.subheader("Signal-to-Noise Performance")
+#st.subheader("Signal-to-Noise Performance")
 
-st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
-        "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
-        "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
-        "well capacity of the sensor.")
-
+#st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
+#        "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
+#        "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
+#        "well capacity of the sensor.")
+#
 #...show a signal do noise ratio consideration
-df = pd.DataFrame.from_dict(
-    {k: f"{v:.4f}" for k, v in snr_info(values).items()},
-    orient="index", columns=["Value"])
-
-st.table(df)
+#df = pd.DataFrame.from_dict(
+#    {k: f"{v:.4f}" for k, v in snr_info(values).items()},
+#    orient="index", columns=["Value"])
+#
+#st.table(df)
 
 st.markdown(
     """
@@ -974,6 +974,7 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
 
 
 
