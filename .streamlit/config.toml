@@ -1,6 +1,6 @@
 [theme]
-primaryColor = "#A7C957"              # lime-green accent
-backgroundColor = "#0D1B2A"           # deep navy
-secondaryBackgroundColor = "#1B263B"  # slightly lighter navy
-textColor = "#FFFFFF"                 # crisp white
+primaryColor = "#64A70B"              # lime-green accent
+backgroundColor =  "#EDEEEF"          # Excelitas Cool Grey 100%
+secondaryBackgroundColor = "#D2D5D7"  # Excelitas Cool Grey 75%
+textColor = "#000000"                 # crisp white
 font = "sans serif"
