@@ -17,6 +17,7 @@ import io
 
 st.set_page_config(
     page_title="sCMOS Image Emulator",
+    page_icon="Resources/Flash_comp.png"   # Path to a local .png, .jpg, or .ico file
 )
 
 
@@ -972,6 +973,7 @@ st.markdown(
 
 # quick debug
 #st.write(values)
+
 
 
 
