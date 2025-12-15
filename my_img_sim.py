@@ -16,9 +16,9 @@ import io
 # -----------------------------
 
 st.set_page_config(
-    page_title="pco.calculator Image Simulation",
-    page_icon="Resources/Flash_comp.png"   # Path to a local .png, .jpg, or .ico file
+    page_title="sCMOS Image Emulator",
 )
+
 
 def make_sidebar():
     """Calling this function draws the sidebar with all its settings and parameters and returns their values as dict."""
@@ -144,10 +144,10 @@ def make_sidebar():
     #### Make the sidebar ########-----------------------
     
     # Sidebar title
-    st.sidebar.title("Controls")
+    st.sidebar.title("Settings")
 
     # ---------- IMAGE SETTINGS ----------
-    st.sidebar.subheader("IMAGE SETTINGS")
+    st.sidebar.subheader("IMAGE")
 
     # Dropdown for image selection
     dd_img_options = [
@@ -191,9 +191,18 @@ def make_sidebar():
     # Line profile position
     slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50, 
                                       help="Position of the line profile relative to the image height")
+# ---------- ILLUMINATION ----------
+    st.sidebar.subheader("ILLUMINATION")
+
+    #wavelength as slider
+    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
+
+    #photon flux density max and add backgraund
+    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
+    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
 
     # ---------- CAMERA & EXPERIMENT ----------
-    st.sidebar.subheader("CAMERA & SETTINGS")
+    st.sidebar.subheader("CAMERA")
 
     # Camera dropdown
     dropdown_options = list(data_cams.keys())
@@ -211,19 +220,29 @@ def make_sidebar():
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
+    
+    # ---------- CAM SPECIFICATIONS ----------
+    st.sidebar.subheader("SPECIFICATIONS")
 
-    # ---------- ILLUMINATION ----------
-    st.sidebar.subheader("ILLUMINATION")
+    #disable als camera spex settings unless choice is sCMOS
+    if camera_model != "sCMOS":
+        disable_widget = True
+    else:
+        disable_widget = False
 
-    #wavelength as slider
-    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
+    #make camera spex as sidbar items
+    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
+    step=0.01,disabled=disable_widget)
+    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
+    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
+    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
+    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
+    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
+    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
 
-    #photon flux density max and add backgraund
-    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
-    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
 
-    # ---------- DISPLAY SETTINGS ----------
-    st.sidebar.subheader("DISPLAY SETTINGS")
+# ---------- DISPLAY SETTINGS ----------
+    st.sidebar.subheader("DISPLAY")
 
     #histogram scale choices Linear or Log
     hist_scale = st.sidebar.selectbox("Histogram Scale", ["Linear", "Logscale"])
@@ -242,27 +261,8 @@ def make_sidebar():
     lut_max = st.sidebar.text_input("Scale LUT max.", "5000", disabled=disable_lut_widget)
     lut_min = st.sidebar.text_input("Scale LUT min.", "100", disabled=disable_lut_widget)
 
-    # ---------- CAM SPECIFICATIONS ----------
-    st.sidebar.subheader("CAMERA SPECIFICS")
-
-    #disable als camera spex settings unless choice is sCMOS
-    if camera_model != "sCMOS":
-        disable_widget = True
-    else:
-        disable_widget = False
-
-    #make camera spex as sidbar items
-    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
-    step=0.01,disabled=disable_widget)
-    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
-    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
-    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
-    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
-    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
-    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
-
     # ---------- SIMULATION CONTROL ----------
-    st.sidebar.subheader("SIMULATION DOWNLOAD")
+    st.sidebar.subheader("DOWNLOAD")
 
     #choice for download options
     save_values_list = ["Simulated Image as TIFF", "Simulation Summary PDF"]
@@ -893,15 +893,13 @@ def snr_info(input_vals):
 values = make_sidebar()
 
 # Create two columns
-col1, col2 = st.columns([2.2,5.2])
+col1, col2 = st.columns([8,2])
 
 with col2:
-    st.image("Resources/EXClogo.png", width='stretch')
+    st.image("Resources/EXCpco.png", width='stretch')
 
-with col1: 
-    st.image("Resources/edge_photo.png", width='stretch')
-
-st.title("pco.calculator: Image Simulation")
+with col1:
+    st.title("sCMOS Image Emulator")
 
 st.info("""
         With this little tool you can superimpose an input image according to camera performance and 
