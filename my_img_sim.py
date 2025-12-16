@@ -16,10 +16,9 @@ import io
 # -----------------------------
 
 st.set_page_config(
-    page_title="sCMOS Image Emulator",
+    page_title="pco.calculator Image Simulation",
     page_icon="Resources/Flash_comp.png"   # Path to a local .png, .jpg, or .ico file
 )
-
 
 def make_sidebar():
     """Calling this function draws the sidebar with all its settings and parameters and returns their values as dict."""
@@ -145,10 +144,10 @@ def make_sidebar():
     #### Make the sidebar ########-----------------------
     
     # Sidebar title
-    st.sidebar.title("Settings")
+    st.sidebar.title("Controls")
 
     # ---------- IMAGE SETTINGS ----------
-    st.sidebar.subheader("IMAGE")
+    st.sidebar.subheader("IMAGE SETTINGS")
 
     # Dropdown for image selection
     dd_img_options = [
@@ -192,18 +191,9 @@ def make_sidebar():
     # Line profile position
     slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50, 
                                       help="Position of the line profile relative to the image height")
-# ---------- ILLUMINATION ----------
-    st.sidebar.subheader("ILLUMINATION")
-
-    #wavelength as slider
-    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
-
-    #photon flux density max and add backgraund
-    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
-    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
 
     # ---------- CAMERA & EXPERIMENT ----------
-    st.sidebar.subheader("CAMERA")
+    st.sidebar.subheader("CAMERA & SETTINGS")
 
     # Camera dropdown
     dropdown_options = list(data_cams.keys())
@@ -221,29 +211,19 @@ def make_sidebar():
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
-    
-    # ---------- CAM SPECIFICATIONS ----------
-    st.sidebar.subheader("SPECIFICATIONS")
 
-    #disable als camera spex settings unless choice is sCMOS
-    if camera_model != "sCMOS":
-        disable_widget = True
-    else:
-        disable_widget = False
+    # ---------- ILLUMINATION ----------
+    st.sidebar.subheader("ILLUMINATION")
 
-    #make camera spex as sidbar items
-    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
-    step=0.01,disabled=disable_widget)
-    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
-    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
-    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
-    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
-    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
-    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
+    #wavelength as slider
+    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
 
+    #photon flux density max and add backgraund
+    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
+    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
 
-# ---------- DISPLAY SETTINGS ----------
-    st.sidebar.subheader("DISPLAY")
+    # ---------- DISPLAY SETTINGS ----------
+    st.sidebar.subheader("DISPLAY SETTINGS")
 
     #histogram scale choices Linear or Log
     hist_scale = st.sidebar.selectbox("Histogram Scale", ["Linear", "Logscale"])
@@ -262,8 +242,27 @@ def make_sidebar():
     lut_max = st.sidebar.text_input("Scale LUT max.", "5000", disabled=disable_lut_widget)
     lut_min = st.sidebar.text_input("Scale LUT min.", "100", disabled=disable_lut_widget)
 
+    # ---------- CAM SPECIFICATIONS ----------
+    st.sidebar.subheader("CAMERA SPECIFICS")
+
+    #disable als camera spex settings unless choice is sCMOS
+    if camera_model != "sCMOS":
+        disable_widget = True
+    else:
+        disable_widget = False
+
+    #make camera spex as sidbar items
+    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
+    step=0.01,disabled=disable_widget)
+    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
+    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
+    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
+    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
+    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
+    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
+
     # ---------- SIMULATION CONTROL ----------
-    st.sidebar.subheader("DOWNLOAD")
+    st.sidebar.subheader("SIMULATION DOWNLOAD")
 
     #choice for download options
     save_values_list = ["Simulated Image as TIFF", "Simulation Summary PDF"]
@@ -942,24 +941,24 @@ if st.session_state.fig is not None:
 
   
 #...print some explanatory text
-st.markdown("**Result:** Square shaped ROI for a virtual (s)CMOS type of camera. The simulated image is a function of the "\
-            "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
-            "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
-            "tool is a nice assistance for determining a suitable camera for a given experiment.")
+# st.markdown("**Result:** Square shaped ROI for a virtual (s)CMOS type of camera. The simulated image is a function of the "\
+#             "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
+#             "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
+#             "tool is a nice assistance for determining a suitable camera for a given experiment.")
 
-#st.subheader("Signal-to-Noise Performance")
+# st.subheader("Signal-to-Noise Performance")
 
-#st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
-#        "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
-#        "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
-#        "well capacity of the sensor.")
-#
-#...show a signal do noise ratio consideration
-#df = pd.DataFrame.from_dict(
-#    {k: f"{v:.4f}" for k, v in snr_info(values).items()},
-#    orient="index", columns=["Value"])
-#
-#st.table(df)
+# st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
+#         "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
+#         "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
+#         "well capacity of the sensor.")
+
+# #...show a signal do noise ratio consideration
+# df = pd.DataFrame.from_dict(
+#     {k: f"{v:.4f}" for k, v in snr_info(values).items()},
+#     orient="index", columns=["Value"])
+
+# st.table(df)
 
 st.markdown(
     """
@@ -973,8 +972,6 @@ st.markdown(
 
 # quick debug
 #st.write(values)
-
-
 
 
 
