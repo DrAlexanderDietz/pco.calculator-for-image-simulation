@@ -85,7 +85,7 @@ def make_sidebar():
         This function shall update return specification variables/items when a camera model 
         is chosen in the GUI. The values are determined by the camera datasheet.
 
-        Ouput: list[pixel pitch, full well cap, read noise, dark noise,conversion factor, offset]
+        Ouput: list[pixel pitch, full well cap, read noise, dark noise,conversion factor, offset, dsnu]
         
         """
         
@@ -97,8 +97,9 @@ def make_sidebar():
         ds_mu_d = float(data_cams[cam][4])
         ds_cF = float(data_cams[cam][6])
         ds_dno = float(data_cams[cam][7])
+        ds_dsnu = float(data_cams[cam][8])
 
-        return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno])
+        return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno,ds_dsnu])
 
     def get_qe(cam, wavelength):
         """
@@ -260,6 +261,7 @@ def make_sidebar():
     convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
     pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
     dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
+    drksnu = st.sidebar.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget)
 
     # ---------- SIMULATION CONTROL ----------
     st.sidebar.subheader("SIMULATION DOWNLOAD")
@@ -277,6 +279,7 @@ def make_sidebar():
         cF =  float(convF)
         p_pitch =  float(pxlpitch)
         dno =  float(dn_offset)
+        dsnu = float(drksnu)
     else:
         qe_eff =  get_qe(camera_model, wavelength)
         ron = data_sheet_vals(camera_model)[2]
@@ -285,6 +288,7 @@ def make_sidebar():
         cF =  data_sheet_vals(camera_model)[4]
         p_pitch =  data_sheet_vals(camera_model)[0]
         dno =  data_sheet_vals(camera_model)[5]
+        dsnu = data_sheet_vals(camera_model)[6]
 
     return {
         # image
@@ -314,7 +318,7 @@ def make_sidebar():
         "convF": cF,
         "pxl_pitch": p_pitch,
         "dn_offset": dno,
-        # export
+        "drksnu": dsnu,
         "export_choice": export_option,
     }
 
@@ -368,7 +372,8 @@ def rand_pG(mu, input_vals):
                        
         #discrete poisson distrubuted value
         poisson_rand_no = np.random.poisson(mu+t_e*mu_d) 
-        
+    
+
         #gauss curve around discrete poisson value with read noise as stdv w/ discrete DN
         gauss_smeared_no = np.round(np.random.normal(poisson_rand_no,ron)*1/convF)+dn_offset
         
@@ -483,6 +488,7 @@ def make_plots(new_vals):
     mu_dark = new_vals["mu_dark"]
     t_exp = new_vals["t_exp"]
     dn_offset = new_vals["dn_offset"]
+    drksnu = new_vals["drksnu"]
     camera_name = new_vals["camera_name"]
     img_comp = new_vals["img_comp"]
     hist_scale = new_vals["hist_scale"]
@@ -497,14 +503,15 @@ def make_plots(new_vals):
                             )
     
     #Provide all hidden info on canvas as suptitle
-    fig.suptitle(t="Simulation {}: ".format(camera_name)+"\n"
+    fig.suptitle(t="Simulation {} @ {}x image crop: ".format(camera_name,img_comp)+"\n"
                     +"Read Noise: {} e- |".format(ron)
                     +" Dark Current: {} e-/sec |".format(mu_dark)
                     +" Exposure: {} s |".format(t_exp)
                     +" QE: {}% @ {}nm |".format(round(qe_eff*100),lmda_nm)
                     +" Conversion: {} e-/DN |".format(convF)
+                    +" DNSU: {} e- |".format(drksnu)
                     +" Offset: {} DN |".format(round(dn_offset))
-                    +" Pixel: {} um Pitch @ {}x Crop".format(pxl_pitch,img_comp),
+                    +" Pixel: {} um Pitch".format(pxl_pitch),
                     #+"\n",
                     fontsize='small',
                     ha='left',
@@ -811,7 +818,7 @@ def make_plots(new_vals):
     frame_phots = get_base_image(new_vals)
 
     #create an array with a fixed pattern for simulation of DSNU
-    DSNU_var = 0.0
+    DSNU_var = new_vals["drksnu"]
 
     pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",")
     pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]]
