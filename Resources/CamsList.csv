@@ -31,6 +31,6 @@ pco.edge 10 bi;pco.edge 9.4 bi CLHS - FastScan;4.6;6500;0.5;0.4;10;0.1;100;0.1
 pco.edge 10 bi;pco.edge 9.4 bi CLHS - MediumScan;4.6;6500;0.4;0.4;10;0.1;100;0.1
 pco.edge 10 bi;pco.edge 9.4 bi CLHS - SlowScan;4.6;7000;0.3;0.4;10;0.11;100;0.05
 pco.dimax 3.6 ST;pco.dimax 3.6 ST - LowGain;11;60000;65;1000;35;70.5;20;60
-pco.dimax 3.6 ST;pco.dimax 3.6 ST - HighGain;11;10000;12;150;35;10;100;20
+pco.dimax 3.6 ST;pco.dimax 3.6 ST - HighGain;11;10000;12;150;35;10;20;20
 Perfect Camera;Perfect Camera;6.5;99999;0;0;0;1;100;0
 sCMOS;sCMOS;6.5;30000;0.8;0.6;7;0.5;100;0.3
