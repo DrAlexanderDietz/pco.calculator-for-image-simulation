@@ -809,8 +809,20 @@ def make_plots(new_vals):
 
     #Start with generating the arrays for the base and noisy image
     frame_phots = get_base_image(new_vals)
-    frame_img = bin_array_sum(rand_pG(frame_phots*qe_eff,new_vals), bin_fac(new_vals)) 
+
+    #create an array with a fixed pattern for simulation of DSNU
+    DSNU_var = 0.0
+
+    pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",")
+    pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]]
+    pattern_noise_frame = np.array(pattern_noise_list)[None, :] * np.ones((frame_phots.shape[-1], 1)) * 1/new_vals["convF"] * DSNU_var
+
+    frame_sim_fullres = rand_pG((frame_phots*qe_eff),new_vals)
     
+    frame_sim_fullres = frame_sim_fullres + np.round(pattern_noise_frame)
+
+    frame_img = bin_array_sum(frame_sim_fullres, bin_fac(new_vals)) 
+
     #cut image data according to full well capacity at limit & consider offset 
     frame_img[frame_img>(full_well_cap*1/convF)+dn_offset-1] = int(
         full_well_cap*1/convF)+1+dn_offset
