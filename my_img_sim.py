@@ -261,7 +261,11 @@ def make_sidebar():
     convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
     pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
     dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
-    drksnu = st.sidebar.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget)
+    drksnu = st.sidebar.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
+                                   help="Total Dark Signal Non-Uniformity. For simplicity we assume only random pixel and columnwise fixed pattern!")
+    dsnu_cont_sldr = st.sidebar.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
+                                       help = 'This slider adjusts the the ratio for the DSNU origin sources: 100 percent means randomly distributed non-uniformities,' \
+                                       ' whereas 0 percent refers to a purely columnwise fixed non-uniformity pattern.')
 
     # ---------- SIMULATION CONTROL ----------
     st.sidebar.subheader("SIMULATION DOWNLOAD")
@@ -280,6 +284,7 @@ def make_sidebar():
         p_pitch =  float(pxlpitch)
         dno =  float(dn_offset)
         dsnu = float(drksnu)
+        dsnu_cs = float(dsnu_cont_sldr)
     else:
         qe_eff =  get_qe(camera_model, wavelength)
         ron = data_sheet_vals(camera_model)[2]
@@ -289,6 +294,7 @@ def make_sidebar():
         p_pitch =  data_sheet_vals(camera_model)[0]
         dno =  data_sheet_vals(camera_model)[5]
         dsnu = data_sheet_vals(camera_model)[6]
+        dsnu_cs = float(dsnu_cont_sldr)
 
     return {
         # image
@@ -319,6 +325,7 @@ def make_sidebar():
         "pxl_pitch": p_pitch,
         "dn_offset": dno,
         "drksnu": dsnu,
+        "dsnu_cont_sldr" : dsnu_cs,
         "export_choice": export_option,
     }
 
@@ -820,13 +827,30 @@ def make_plots(new_vals):
     #create an array with a fixed pattern for simulation of DSNU
     DSNU_var = new_vals["drksnu"]
 
-    pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",")
-    pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]]
-    pattern_noise_frame = np.array(pattern_noise_list)[None, :] * np.ones((frame_phots.shape[-1], 1)) * 1/new_vals["convF"] * DSNU_var
+    #Column located DSNU
+    pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",") #base file: 1D random distribution w/ stdv 1 around 0
+    pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]] #truncate to base image width
+    pattern_noise_frame = np.array(pattern_noise_list)[None, :] * np.ones((frame_phots.shape[-1], 1)) * 1/new_vals["convF"] * DSNU_var #fixed stipe pattern
+
+    dsnu_row_rand_ratio = new_vals["dsnu_cont_sldr"]/100
+    
+    #load random dsnu only when necessary
+    if dsnu_row_rand_ratio != 0:
+
+        #Random Pixel DSNU
+        rand_dsnu_frame = np.loadtxt("Resources/random_1024x1024.csv", delimiter = ',') #base file: 2D random distribution w/ stdv 1 around 0
+        rand_dsnu_frame = rand_dsnu_frame[:frame_phots.shape[-1],:frame_phots.shape[-1]]
+        rand_dsnu_frame = rand_dsnu_frame*1/new_vals["convF"] * DSNU_var
+
+        dsnu_frame_total = (rand_dsnu_frame * dsnu_row_rand_ratio**0.5) + (pattern_noise_frame * (1-dsnu_row_rand_ratio)**0.5)
+
+    else:
+        dsnu_frame_total = pattern_noise_frame
 
     frame_sim_fullres = rand_pG((frame_phots*qe_eff),new_vals)
     
-    frame_sim_fullres = frame_sim_fullres + np.round(pattern_noise_frame)
+    #frame_sim_fullres = frame_sim_fullres + np.round(pattern_noise_frame)
+    frame_sim_fullres = frame_sim_fullres + np.round(dsnu_frame_total)
 
     frame_img = bin_array_sum(frame_sim_fullres, bin_fac(new_vals)) 
 
