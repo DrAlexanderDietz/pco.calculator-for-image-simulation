@@ -85,7 +85,7 @@ def make_sidebar():
         This function shall update return specification variables/items when a camera model 
         is chosen in the GUI. The values are determined by the camera datasheet.
 
-        Ouput: list[pixel pitch, full well cap, read noise, dark noise,conversion factor, offset, dsnu]
+        Ouput: list[pixel pitch, full well cap, read noise, dark noise,conversion factor, offset, dsnu, ADC]
         
         """
         
@@ -98,8 +98,9 @@ def make_sidebar():
         ds_cF = float(data_cams[cam][6])
         ds_dno = float(data_cams[cam][7])
         ds_dsnu = float(data_cams[cam][8])
+        ds_ADC = int(data_cams[cam][9])
 
-        return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno,ds_dsnu])
+        return([ds_pxl,ds_fwc,ds_ron,ds_mu_d,ds_cF,ds_dno,ds_dsnu,ds_ADC])
 
     def get_qe(cam, wavelength):
         """
@@ -211,7 +212,16 @@ def make_sidebar():
 
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
-    bin_opts = st.sidebar.selectbox("Binning", bin_values_list)
+    bin_opts = st.sidebar.selectbox("Binning", bin_values_list, 
+                                    help = "In sCMOS sensors, binning is only applied after acquisition and thus only " \
+                                        "provides a statistical improvement of the signal-to-noise ratio. Binning of four pixels "
+                                        "(2x2) will increase the SNR by a foactor of 2!")
+
+    # Averaging
+    avg_numb = st.sidebar.number_input("Number Images for Averaging", 1, 
+                                       help = "Averaging over series of images will reduce the total noise by a factor of one over the square " \
+                                       "root of the number of images. For example averaging over 16 images will increase the signal-to-noise ratio" \
+                                       " by a factor of 4!")   
 
     # ---------- ILLUMINATION ----------
     st.sidebar.subheader("ILLUMINATION")
@@ -255,17 +265,45 @@ def make_sidebar():
     #make camera spex as sidbar items
     qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
     step=0.01,disabled=disable_widget)
-    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget)
-    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget)
-    fwc = st.sidebar.text_input("Full Well Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget)
-    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget)
+    
     pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
-    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget)
+    
+
+    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget,
+                               help = "Read Noise is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
+                               " is approximated as a normal distribution. In reality, read noise may deviate from the perfect Gauss curve to some degree," \
+                               " depending on the type of sensor utilized.")
+
+    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget,
+                               help = "The Dark Current describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
+                               "of-thumb this value doubles every 7-8 °C when increasing the sensor temperature. Dark Current shows a Poissonian " \
+                               "distribution and therefore contributes to the total noise of the camera.")
+    
+    fwc = st.sidebar.text_input("Fullwell Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget,
+                                help = "Fullwell Capacity in units of electrons. If the signal is clipping, the respective pixels will be highlighted" \
+                                " in red in the simulated image!")
+       
+    bit_depth = st.sidebar.slider("ADC Bit-Depth", min_value=8,max_value=16, value=int(data_sheet_vals(camera_model)[7]),
+                                  step=1, disabled=disable_widget, 
+                                  help = "Dynamic Range of the analog-to-digital coverter. Image data will clip at this level.")
+    
+    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget,
+                                  help = 'The Conversion Factor is the inverse analog of the also often used "System Gain". It describes how many'
+                                  ' photo-electrons are required to increase the signal by one gray level.')
+    
+    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget,
+                                      help = "To prevent signal from clipping at the dark end, an artificial offset is set to shift the histogram to the " \
+                                      " right by a certin number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
+                                      "metric analyses.")
+    
     drksnu = st.sidebar.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
                                    help="Total Dark Signal Non-Uniformity. For simplicity we assume only random pixel and columnwise fixed pattern!")
+    
     dsnu_cont_sldr = st.sidebar.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
                                        help = 'This slider adjusts the the ratio for the DSNU origin sources: 100 percent means randomly distributed non-uniformities,' \
                                        ' whereas 0 percent refers to a purely columnwise fixed non-uniformity pattern.')
+    
+
 
     # ---------- SIMULATION CONTROL ----------
     st.sidebar.subheader("SIMULATION DOWNLOAD")
@@ -285,6 +323,7 @@ def make_sidebar():
         dno =  float(dn_offset)
         dsnu = float(drksnu)
         dsnu_cs = float(dsnu_cont_sldr)
+        adc = int(bit_depth)
     else:
         qe_eff =  get_qe(camera_model, wavelength)
         ron = data_sheet_vals(camera_model)[2]
@@ -295,6 +334,7 @@ def make_sidebar():
         dno =  data_sheet_vals(camera_model)[5]
         dsnu = data_sheet_vals(camera_model)[6]
         dsnu_cs = float(dsnu_cont_sldr)
+        adc = data_sheet_vals(camera_model)[7]
 
     return {
         # image
@@ -307,6 +347,7 @@ def make_sidebar():
         "camera_name": camera_model,
         "t_exp": float(exposure_time),
         "bin_factor": bin_values_list.index(bin_opts),
+        "avg_img_numb" : int(avg_numb),
         # illumination
         "lmda_nm": int(wavelength),
         "phi_pfd_max": float(phi_pfd_max),
@@ -326,6 +367,7 @@ def make_sidebar():
         "dn_offset": dno,
         "drksnu": dsnu,
         "dsnu_cont_sldr" : dsnu_cs,
+        "adc_bit" : adc,
         "export_choice": export_option,
     }
 
@@ -376,15 +418,25 @@ def rand_pG(mu, input_vals):
         mu_d =input_vals["mu_dark"]
         t_e = input_vals["t_exp"]
         dn_offset = input_vals["dn_offset"]
+        avg_img_numb = input_vals["avg_img_numb"]
                        
-        #discrete poisson distrubuted value
-        poisson_rand_no = np.random.poisson(mu+t_e*mu_d) 
-    
+        avg_random_no = 0 #container for averaging
 
-        #gauss curve around discrete poisson value with read noise as stdv w/ discrete DN
-        gauss_smeared_no = np.round(np.random.normal(poisson_rand_no,ron)*1/convF)+dn_offset
+        for i in range(avg_img_numb): #loop over number of images
+            
+            #discrete poisson distrubuted value
+            poisson_rand_no = np.random.poisson(mu+t_e*mu_d)
+
+            #gauss curve around discrete poisson value with read noise as stdv w/ discrete DN
+            gauss_smeared_no = np.round(np.random.normal(poisson_rand_no,ron)*1/convF)+dn_offset
         
-        return(gauss_smeared_no)
+            #sum up all random values        
+            avg_random_no = avg_random_no + gauss_smeared_no
+        
+        #finally divide by numer of imgs.
+        avg_random_no = np.round(avg_random_no/avg_img_numb)
+        
+        return(avg_random_no)
     
 def gaussian_array(x, y, sigma, hgt=1):
     """
@@ -501,6 +553,7 @@ def make_plots(new_vals):
     hist_scale = new_vals["hist_scale"]
     lmda_nm = new_vals["lmda_nm"]
     pxl_pitch = new_vals["pxl_pitch"]
+    avg_numb = new_vals["avg_img_numb"]
     
     #plot "truth" left and simulated image right
     fig, axs = plt.subplots(2, 2,
@@ -510,7 +563,7 @@ def make_plots(new_vals):
                             )
     
     #Provide all hidden info on canvas as suptitle
-    fig.suptitle(t="Simulation {} @ {}x image crop: ".format(camera_name,img_comp)+"\n"
+    fig.suptitle(t="Simulation {} @ {}x image crop & average of {} images: ".format(camera_name,img_comp,avg_numb)+"\n"
                     +"Read Noise: {} e- |".format(ron)
                     +" Dark Current: {} e-/sec |".format(mu_dark)
                     +" Exposure: {} s |".format(t_exp)
@@ -587,6 +640,8 @@ def make_plots(new_vals):
         fw= input_vals["f_width"]
         crop = input_vals["img_comp"]
         bin_fac = input_vals["bin_factor"]
+        bit_depth = input_vals["adc_bit"]
+        dno = input_vals["dn_offset"]
         #cam_name= input_vals["camera_name"]
         
         pos=line_pos(new_vals)
@@ -599,8 +654,9 @@ def make_plots(new_vals):
             v_max_img, v_min_img = luts[1],luts[2]
         
         
-        #Identify every pixel that exceeds full well capacity...
+        #Identify every pixel that exceeds full well capacity / bit depth...
         mask = img > fwc*1/cF
+        #mask = img >= 2**bit_depth-dno
         overlay = np.zeros((*img.shape, 4))
         overlay[mask] = [1,0,0,1]           
 
@@ -853,10 +909,9 @@ def make_plots(new_vals):
     frame_sim_fullres = frame_sim_fullres + np.round(dsnu_frame_total)
 
     frame_img = bin_array_sum(frame_sim_fullres, bin_fac(new_vals)) 
-
-    #cut image data according to full well capacity at limit & consider offset 
-    frame_img[frame_img>(full_well_cap*1/convF)+dn_offset-1] = int(
-        full_well_cap*1/convF)+1+dn_offset
+    
+    #cut image data according to bit depth of the camera
+    frame_img[frame_img>=2**new_vals["adc_bit"]] = int(2**new_vals["adc_bit"])-1
 
     ####Plot data ========================================================= 
     
