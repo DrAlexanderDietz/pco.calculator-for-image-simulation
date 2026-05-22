@@ -750,6 +750,12 @@ def make_plots(new_vals):
         #Apply LUT limits if wanted
         if luts[0] == 0:
             v_max_img, v_min_img = img.max(),img.min()
+
+        #prevent error if only one bin is filled in histogramm
+            if (v_max_img - v_min_img) < 16:
+                v_max_img = v_max_img + 8
+                v_min_img = v_max_img - 16                            
+                                    
         else:
             v_max_img, v_min_img = luts[1],luts[2]
 
