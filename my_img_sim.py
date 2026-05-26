@@ -92,11 +92,11 @@ def make_sidebar():
         #simple overwriting of pvalues according to dataset value
         
         ds_pxl = float(data_cams[cam][1])
-        ds_fwc = float(data_cams[cam][2])
+        ds_fwc = int(data_cams[cam][2])
         ds_ron = float(data_cams[cam][3])
         ds_mu_d = float(data_cams[cam][4])
         ds_cF = float(data_cams[cam][6])
-        ds_dno = float(data_cams[cam][7])
+        ds_dno = int(data_cams[cam][7])
         ds_dsnu = float(data_cams[cam][8])
         ds_ADC = int(data_cams[cam][9])
 
@@ -175,16 +175,16 @@ def make_sidebar():
 
     #disablbe slider when full 1064 pxl width image is schosen
     if st.session_state.exp_n != 10:
-        st.sidebar.slider("Pixel Pitch Crop [%]",
+        st.sidebar.slider("Pixel Size Coefficient [%]",
             crop_min(st.session_state.exp_n), 100, 100,
             key="crop",
-            help="Application of crop allow to compare different pixel sizes. If you for example"\
-            " want to compare 4.5 µm pixels of the pco.edge 10 bi with the 6.5 µm pixels of the" \
-            " pco.edge 4.2, simply apply a 71% 'crop' (=4.6/6.5) to the larger pixels to adapt the field" \
-            " of view and effectively 'zoom out' in the image. The initial FoV is shown as green box."
+            help="Adjusting the **pixel size coefficient** allows to compare different pixel sizes. If you"\
+            " want to compare 4.6 µm pixels of pco.edge 10 bi with the 6.5 µm pixels of" \
+            " pco.edge 4.2 for example, simply apply a 71% 'coefficient' (=4.6/6.5) to the larger pixels to adapt the field" \
+            " of view and effectively 'zoom out' in the image. The initial FoV is also shown as green box."
             )
     else:
-        st.sidebar.slider("Pixel Pitch Crop [%]",
+        st.sidebar.slider("Pixel Size Coefficient [%]",
             1, 100, 100,
             key="crop",
             disabled=True
@@ -208,7 +208,11 @@ def make_sidebar():
                                             " noise and has perfect QE.")
 
     # Exposure time
-    exposure_time = st.sidebar.text_input("Exposure Time / sec", "1")
+    exposure_time = st.sidebar.text_input("Exposure Time / sec", "1.0",
+                                          help = "Set exposure time according to your experiment. Together with the maximum photon flux"
+                                          "density and background illumination this will determine the amount of photons that will" \
+                                          "arrive at the dtector. The amount of dark current building up during" \
+                                          "exposure is also a consequence of exposure time.")
 
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
@@ -227,82 +231,98 @@ def make_sidebar():
     st.sidebar.subheader("ILLUMINATION")
 
     #wavelength as slider
-    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600)
+    wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600,
+                                   help = "For the simulation we assume illumination to be monochromatic. The respective quantum efficiency of the PCO" \
+                                   " camera of choice will be retreived automatically.")
 
     #photon flux density max and add backgraund
-    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1")
-    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0")
+    phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1.0",
+                                        help = "The photon flux density describes the number of photons that arrive at an area of 1 µm x 1 µm " \
+                                        "per second. This definition helps to properly compare the overall sensitivities of cameras with different pixel" \
+                                        " densities. Adjust the **maximum photon flux density** to control the maximum illumination in the ground truth image.")
+
+    phi_pfd_bg = st.sidebar.text_input("Background Illumination / ph/(um)²/sec", "0.0", 
+                                       help = "The **background illumination** control allows to superimpose the input ground truth illumination with an"
+                                       "additional uniform background-light contribution. This helps to deliberately introduce or counterbalance any offset " \
+                                       "in the input image." )
 
     # ---------- DISPLAY SETTINGS ----------
     st.sidebar.subheader("DISPLAY SETTINGS")
 
-    #histogram scale choices Linear or Log
-    hist_scale = st.sidebar.selectbox("Histogram Scale", ["Linear", "Logscale"])
+    with st.sidebar:
+        with st.expander("Plot & LUT Details"):
+            #histogram scale choices Linear or Log
+            hist_scale = st.selectbox("Histogram Scale", ["Linear", "Logscale"])
 
-    #Autoscale the image data or set deliberate limits 
-    ats_opts_list = ["Autoscale","Set LUT Limits"]
-    ats_opts = st.sidebar.selectbox("Scaling", ats_opts_list)
+            #Autoscale the image data or set deliberate limits 
+            ats_opts_list = ["Autoscale","Set LUT Limits"]
+            ats_opts = st.selectbox("Scaling", ats_opts_list)
 
-    #disable when autoscale
-    if ats_opts == "Autoscale":
-        disable_lut_widget = True
-    else:
-        disable_lut_widget = False 
+            #disable when autoscale
+            if ats_opts == "Autoscale":
+                disable_lut_widget = True
+            else:
+                disable_lut_widget = False 
 
-    #max and min for manual LUT
-    lut_max = st.sidebar.text_input("Scale LUT max.", "5000", disabled=disable_lut_widget)
-    lut_min = st.sidebar.text_input("Scale LUT min.", "100", disabled=disable_lut_widget)
+            #max and min for manual LUT
+            lut_max = st.text_input("Scale LUT max.", "255", disabled=disable_lut_widget)
+            lut_min = st.text_input("Scale LUT min.", "0", disabled=disable_lut_widget)
 
     # ---------- CAM SPECIFICATIONS ----------
     st.sidebar.subheader("CAMERA SPECIFICS")
 
-    #disable als camera spex settings unless choice is sCMOS
-    if camera_model != "sCMOS":
-        disable_widget = True
-    else:
-        disable_widget = False
+    with st.sidebar:
+        with st.expander("Camera Details"):
 
-    #make camera spex as sidbar items
-    qe = st.sidebar.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
-    step=0.01,disabled=disable_widget)
-    
-    pxlpitch = st.sidebar.text_input("Pixel Pitch / um", data_sheet_vals(camera_model)[0], disabled=disable_widget)
-    
+            #disable als camera spex settings unless choice is sCMOS
+            if camera_model != "sCMOS":
+                disable_widget = True
+            else:
+                disable_widget = False
 
-    rn = st.sidebar.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget,
-                               help = "Read Noise is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
-                               " is approximated as a normal distribution. In reality, read noise may deviate from the perfect Gauss curve to some degree," \
-                               " depending on the type of sensor utilized.")
+            #make camera spex as sidbar items
+            qe = st.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
+            step=0.01,disabled=disable_widget)
+            
+            pxlpitch = st.text_input("Pixel Pitch / µm", data_sheet_vals(camera_model)[0], disabled=disable_widget,
+                                     help = "The **pixel pitch** represents length and height of the individual pixels (detector elements) of"
+                                     " the image sensor.")
+            
 
-    dc = st.sidebar.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget,
-                               help = "The Dark Current describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
-                               "of-thumb this value doubles every 7-8 °C when increasing the sensor temperature. Dark Current shows a Poissonian " \
-                               "distribution and therefore contributes to the total noise of the camera.")
-    
-    fwc = st.sidebar.text_input("Fullwell Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget,
-                                help = "Fullwell Capacity in units of electrons. If the signal is clipping, the respective pixels will be highlighted" \
-                                " in red in the simulated image!")
-       
-    bit_depth = st.sidebar.slider("ADC Bit-Depth", min_value=8,max_value=16, value=int(data_sheet_vals(camera_model)[7]),
-                                  step=1, disabled=disable_widget, 
-                                  help = "Dynamic Range of the analog-to-digital coverter. Image data will clip at this level.")
-    
-    convF = st.sidebar.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget,
-                                  help = 'The Conversion Factor is the inverse analog of the also often used "System Gain". It describes how many'
-                                  ' photo-electrons are required to increase the signal by one gray level.')
-    
-    dn_offset = st.sidebar.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget,
-                                      help = "To prevent signal from clipping at the dark end, an artificial offset is set to shift the histogram to the " \
-                                      " right by a certin number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
-                                      "metric analyses.")
-    
-    drksnu = st.sidebar.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
-                                   help="Total Dark Signal Non-Uniformity. For simplicity we assume only random pixel and columnwise fixed pattern!")
-    
-    dsnu_cont_sldr = st.sidebar.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
-                                       help = 'This slider adjusts the the ratio for the DSNU origin sources: 100 percent means randomly distributed non-uniformities,' \
-                                       ' whereas 0 percent refers to a purely columnwise fixed non-uniformity pattern.')
-    
+            rn = st.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget,
+                                    help = "Read Noise is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
+                                    " is approximated as a normal distribution. In reality, read noise may deviate from the perfect Gauss curve to some degree," \
+                                    " depending on the type of sensor utilized.")
+
+            dc = st.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget,
+                                    help = "The Dark Current describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
+                                    "of-thumb this value doubles every 7-8 °C when increasing the sensor temperature. Dark Current shows a Poissonian " \
+                                    "distribution and therefore contributes to the total noise of the camera.")
+            
+            fwc = st.text_input("Fullwell Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget,
+                                        help = "Fullwell Capacity in units of electrons. If the signal is clipping, the respective pixels will be highlighted" \
+                                        " in red in the simulated image!")
+            
+            bit_depth = st.slider("ADC Bit-Depth", min_value=8,max_value=16, value=int(data_sheet_vals(camera_model)[7]),
+                                        step=1, disabled=disable_widget, 
+                                        help = "Dynamic Range of the analog-to-digital coverter. Image data will clip at this level.")
+            
+            convF = st.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget,
+                                        help = 'The Conversion Factor is the inverse analog of the also often used "System Gain". It describes how many'
+                                        ' photo-electrons are required to increase the signal by one gray level.')
+            
+            dn_offset = st.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget,
+                                            help = "To prevent signal from clipping at the dark end, an artificial offset is set to shift the histogram to the " \
+                                            " right by a certin number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
+                                            "metric analyses.")
+            
+            drksnu = st.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
+                                        help="Total Dark Signal Non-Uniformity. For simplicity we assume only random pixel and columnwise fixed pattern!")
+            
+            dsnu_cont_sldr = st.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
+                                            help = 'This slider adjusts the the ratio for the DSNU origin sources: 100 percent means randomly distributed non-uniformities,' \
+                                            ' whereas 0 percent refers to a purely columnwise fixed non-uniformity pattern.')
+            
 
 
     # ---------- SIMULATION CONTROL ----------
@@ -361,13 +381,13 @@ def make_sidebar():
         "qe_eff": qe_eff,
         "ron": ron,
         "mu_dark": mu_dark,
-        "full_well_cap": full_well_cap,
+        "full_well_cap": int(full_well_cap),
         "convF": cF,
         "pxl_pitch": p_pitch,
-        "dn_offset": dno,
+        "dn_offset": int(dno),
         "drksnu": dsnu,
         "dsnu_cont_sldr" : dsnu_cs,
-        "adc_bit" : adc,
+        "adc_bit" : int(adc),
         "export_choice": export_option,
     }
 
@@ -563,15 +583,16 @@ def make_plots(new_vals):
                             )
     
     #Provide all hidden info on canvas as suptitle
-    fig.suptitle(t="Simulation {} @ {}x image crop & average of {} images: ".format(camera_name,img_comp,avg_numb)+"\n"
+    fig.suptitle(t="Simulation {}".format(camera_name)+"\n"
+                    +"Exposure: {} s |".format(t_exp)
+                    +" Pixel Size Coefficient: {} | Average over {} Images ".format(img_comp,avg_numb) + "\n"
                     +"Read Noise: {} e- |".format(ron)
-                    +" Dark Current: {} e-/sec |".format(mu_dark)
-                    +" Exposure: {} s |".format(t_exp)
+                    +" Dark Current: {} e-/sec |".format(mu_dark)                   
                     +" QE: {}% @ {}nm |".format(round(qe_eff*100),lmda_nm)
                     +" Conversion: {} e-/DN |".format(convF)
                     +" DNSU: {} e- |".format(drksnu)
                     +" Offset: {} DN |".format(round(dn_offset))
-                    +" Pixel: {} um Pitch".format(pxl_pitch),
+                    +" Pixel Size: {} µm ".format(pxl_pitch),
                     #+"\n",
                     fontsize='small',
                     ha='left',
@@ -753,8 +774,8 @@ def make_plots(new_vals):
 
         #prevent error if only one bin is filled in histogramm
             if (v_max_img - v_min_img) < 16:
-                v_max_img = v_max_img + 8
-                v_min_img = v_max_img - 16                            
+                v_max_img = v_max_img + 4
+                v_min_img = v_min_img - 4                           
                                     
         else:
             v_max_img, v_min_img = luts[1],luts[2]
@@ -904,6 +925,7 @@ def make_plots(new_vals):
         rand_dsnu_frame = rand_dsnu_frame[:frame_phots.shape[-1],:frame_phots.shape[-1]]
         rand_dsnu_frame = rand_dsnu_frame*1/new_vals["convF"] * DSNU_var
 
+        #superimpose random and columnwise dsnu frames
         dsnu_frame_total = (rand_dsnu_frame * dsnu_row_rand_ratio**0.5) + (pattern_noise_frame * (1-dsnu_row_rand_ratio)**0.5)
 
     else:
