@@ -153,8 +153,8 @@ def make_sidebar():
 
     # Dropdown for image selection
     dd_img_options = [
-        "Gaussian", "Square", "Homogeneous", "Microscopy Example",
-        "Astronomy Example", "Camera Testchart", "Upload Image"]
+        "Gaussian", "Square", "Homogeneous", "Test Pattern HDR", "Microscopy Example",
+        "Astronomy Example", "Testchart Example", "Upload Image"]
     dd_img = st.sidebar.selectbox("Choose Image",
                                 dd_img_options,
                                 help="Example image options may be based on 8-bit image data!")
@@ -502,7 +502,41 @@ def homogeneous_illumination(input_vals):
     sq_image = np.ones((width,width))
     
     return sq_image
+
+def test_chart_artificial(input_vals):
+    """
+    Generates an array that spans 15-bit of dynamic range.
+    """
+    size = input_vals["f_width"]
+    sectors = 64
+
+    # Create coordinate grid
+    x = np.linspace(-1, 1, size)
+    y = np.linspace(-1, 1, size)
+    X, Y = np.meshgrid(x, y)
     
+    # Convert to polar coordinates
+    theta = np.arctan2(Y, X)
+    
+    # Create radial sector pattern (black and white alternating sectors)
+    pattern = (np.sin(sectors * theta) > 0).astype(int)
+
+    pattern = (pattern+19)/20
+    
+    frame_blank = np.zeros((size,size//16))       
+    frame_karo = np.concatenate((frame_blank+2**0,frame_blank+2**1,frame_blank+2**2,frame_blank+2**3,
+                                 frame_blank+2**4,frame_blank+2**5,frame_blank+2**6,frame_blank+2**7,frame_blank+2**8,
+                                 frame_blank+2**9,frame_blank+2**10,frame_blank+2**11,frame_blank+2**12,frame_blank+2**13,
+                                 frame_blank+2**14, frame_blank+2**15),axis=1)  
+    
+    frame_karo += frame_karo.T
+
+    frame_total = frame_karo * pattern
+
+    frame_total = frame_total / frame_total.max()
+    
+    return frame_total
+
 def any_image(image_path, input_vals):
     """"Allows to load any image and perform the the noise overlay"""
     
@@ -870,13 +904,16 @@ def make_plots(new_vals):
             elif base_img == "Square":
                 return(square_overlay(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
+            elif base_img == "Test Pattern HDR":
+                return(test_chart_artificial(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+            
             elif base_img == "Microscopy Example":
                 return(any_image('import_images/image_bio.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Astronomy Example":
                 return(any_image('import_images/image_space.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
-            elif base_img == "Camera Testchart":
+            elif base_img == "Testchart Example":
                 return(any_image('import_images/test-chart-eia.jpg',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Upload Image":
