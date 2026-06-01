@@ -191,8 +191,12 @@ def make_sidebar():
             )
 
     # Line profile position
-    slider_linpos = st.sidebar.slider("Profile Line [Height %]", 0, 99, 50, 
+    slider_linpos = st.sidebar.slider("Line Profile X [Height %]", 0, 99, 50, 
                                       help="Position of the line profile relative to the image height")
+    
+        # Line profile position
+    slider_linpos_II = st.sidebar.slider("Line Profile Y [Width %]", 0, 99, 50, 
+                                      help="Position of the line profile relative to the image width")
 
     # ---------- CAMERA & EXPERIMENT ----------
     st.sidebar.subheader("CAMERA & SETTINGS")
@@ -363,6 +367,7 @@ def make_sidebar():
         "f_width": int(2 ** st.session_state.exp_n),
         "img_comp": int(st.session_state.crop)/100,
         "line_pos_prct": int(slider_linpos),
+        "line_pos_II_prct": int(slider_linpos_II),
         # camera & experiment
         "camera_name": camera_model,
         "t_exp": float(exposure_time),
@@ -418,6 +423,14 @@ def line_pos(input_vals):
     
     f_width = input_vals["f_width"]
     lpp = input_vals["line_pos_prct"]
+    
+    return(int(f_width/bin_fac(input_vals)*lpp/100))
+
+def line_pos_II(input_vals):
+    """#Effektive Position [% der Bildhöhe] der Linie auf Canvas"""
+    
+    f_width = input_vals["f_width"]
+    lpp = input_vals["line_pos_II_prct"]
     
     return(int(f_width/bin_fac(input_vals)*lpp/100))
 
@@ -524,7 +537,7 @@ def test_chart_artificial(input_vals):
     pattern = (pattern+19)/20
     
     frame_blank = np.zeros((size,size//16))       
-    frame_karo = np.concatenate((frame_blank+2**0,frame_blank+2**1,frame_blank+2**2,frame_blank+2**3,
+    frame_karo = np.concatenate((frame_blank,frame_blank+2**1,frame_blank+2**2,frame_blank+2**3,
                                  frame_blank+2**4,frame_blank+2**5,frame_blank+2**6,frame_blank+2**7,frame_blank+2**8,
                                  frame_blank+2**9,frame_blank+2**10,frame_blank+2**11,frame_blank+2**12,frame_blank+2**13,
                                  frame_blank+2**14, frame_blank+2**15),axis=1)  
@@ -640,6 +653,16 @@ def make_plots(new_vals):
     plt.style.use("classic")
     
     def crop_window(fw, crop, plt_no, binf=0):
+
+        """Visualizes a green square on the image  to indicate the original FoV w/o any image 
+        compression via pixel size scaling.
+        
+        Parameters:
+            fw: frame width
+            crop: pixel size coefficient
+            plt_no: index of plot
+            binf: binning factor
+        """
         
         if crop != 1:
             crf_max = fw*(crop+(1-crop)/2)/(2**binf)
@@ -649,7 +672,7 @@ def make_plots(new_vals):
                             '-', color='limegreen', alpha=1)
 
     def truth_plot(phots, input_vals, plt_no=(0,0),
-                    pos=line_pos(new_vals), bf=bin_fac(new_vals)):       
+                    pos=line_pos(new_vals), posII=line_pos_II(new_vals), bf=bin_fac(new_vals)):       
         """
         Plots the Photon ground truth 2D distribution as a color map.
         
@@ -667,7 +690,8 @@ def make_plots(new_vals):
         phots = axs[plt_no].imshow(phots,
                                 cmap='rainbow',
                                 interpolation='none')
-        axs[plt_no].plot([0,fw],[pos*bf,pos*bf],'b-')
+        axs[plt_no].plot([0,fw],[pos*bf,pos*bf],'-', color='gold')
+        axs[plt_no].plot([posII*bf,posII*bf],[0,fw],'m-')
         axs[plt_no].autoscale(False)
         axs[plt_no].xaxis.tick_top()
         axs[plt_no].set_xlabel("Input: Expected Photons per Phys. Pixel", labelpad=10)
@@ -700,6 +724,7 @@ def make_plots(new_vals):
         #cam_name= input_vals["camera_name"]
         
         pos=line_pos(new_vals)
+        posII =line_pos_II(new_vals)
         luts = lut_settings(new_vals)                         
         
         #Apply LUT limits if wanted
@@ -713,9 +738,8 @@ def make_plots(new_vals):
         mask = img > fwc*1/cF
         #mask = img >= 2**bit_depth-dno
         overlay = np.zeros((*img.shape, 4))
-        overlay[mask] = [1,0,0,1]           
-
-        
+        overlay[mask] = [1,0,0,1]
+                      
         #Gray Scale Image scaled according to LUT limits
         img = axs[plt_no].imshow(frame_img,
                             cmap = 'gray',
@@ -728,6 +752,7 @@ def make_plots(new_vals):
         axs[plt_no].imshow(overlay,interpolation='none')
         axs[plt_no].imshow(frame_img,alpha=0,interpolation='none',)
         axs[plt_no].plot([0,fw],[pos,pos],'r-')
+        axs[plt_no].plot([posII,posII],[0,fw],'b-')
 
         #Plot Settings
         axs[plt_no].xaxis.tick_top()
@@ -755,6 +780,7 @@ def make_plots(new_vals):
         """
         
         pos = line_pos(new_vals)
+        posII = line_pos_II(new_vals)
         cF = input_vals["convF"]
         bf = bin_fac(new_vals)
         md = input_vals["mu_dark"]
@@ -770,16 +796,21 @@ def make_plots(new_vals):
             v_max_img, v_min_img = luts[1],luts[2]
             
         #Line prof values (y) for simulated and truth image
-        line_prof_vals = img[pos].tolist()            
+        line_prof_vals = img[pos].tolist()
         line_prof_vals_truth = ((1/cF*(phots[pos*bf]*qe_eff+md*te)+dno)*bf**2).tolist()
+        
+        line_profII_vals = img[:, posII].tolist()
+        line_profII_vals_truth = ((1/cF*(phots[:, posII*bf]*qe_eff+md*te)+dno)*bf**2).tolist()
         
         #Line prof values (x) for simulated and truth image
         row_no = [i for i in range(len(line_prof_vals))]
         row_no_truth = [i/bin_fac(new_vals) for i in range(len(line_prof_vals_truth))]
         
         #Plot Settings
-        axs[plt_no].plot(row_no,line_prof_vals,'r-', label='Line Profile Simulated Image')
-        axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'b-', label='Truth to DN w/o Any Noise')
+        axs[plt_no].plot(row_no,line_prof_vals,'r-', label='Simulated Image (X)')
+        axs[plt_no].plot(row_no,line_profII_vals,'b-', label='Simulated Image (Y)')
+        axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'-',color='gold', label='Ground Truth (X)')
+        axs[plt_no].plot(row_no_truth,line_profII_vals_truth,'-',color='magenta', label='Ground Truth (Y)')
         axs[plt_no].set_xlim([0,row_no[-1]])
         axs[plt_no].set_ylim([v_min_img,v_max_img]) #new
         axs[plt_no].yaxis.tick_left()
@@ -1104,29 +1135,29 @@ if st.session_state.fig is not None:
 
   
 #...print some explanatory text
-# st.markdown("**Result:** Square shaped ROI for a virtual (s)CMOS type of camera. The simulated image is a function of the "\
-#             "input or product specification data. This tool does not aim to generate 100% accurate image data. Rather, it "\
-#             "is intended to illustrate how different datasheet parameters can influence our image data. In addition, this "\
-#             "tool is a nice assistance for determining a suitable camera for a given experiment.")
+st.markdown("**Result:** Square shaped ROI for a virtual scientific CMOS camera. The output grayscale image is entirely simulated as a function " \
+            "of the input or product specification data. Be aware that this tool cannot simulate real image data and is intended to be used for " \
+            "educational purposes only! Its aim is illustrating how different datasheet parameters can influence our image quality. In addition, this "\
+            "tool can serve as a nice assistance for determining a suitable camera for a given experiment.")
 
-# st.subheader("Signal-to-Noise Performance")
+#st.subheader("Signal-to-Noise Performance")
 
-# st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
+#st.text("In the table below you find information regarding the signal-to-noise ratio under specified experiment conditions. "\
 #         "Per definition, we assume HOMOGNEOUS illumination at the extent of specified max. photon flux density. For a " \
 #         "sensible result keep the illumination strength within the cameras capabilities, i.e. the signal within the full "\
 #         "well capacity of the sensor.")
 
 # #...show a signal do noise ratio consideration
-# df = pd.DataFrame.from_dict(
-#     {k: f"{v:.4f}" for k, v in snr_info(values).items()},
-#     orient="index", columns=["Value"])
+#df = pd.DataFrame.from_dict(
+#    {k: f"{v:.4f}" for k, v in snr_info(values).items()},
+#    orient="index", columns=["Value"])
 
-# st.table(df)
+#st.table(df)
 
 st.markdown(
     """
     <div style="text-align: center; padding: 20px; color: gray; font-size: 14px;">
-        © 2025 Excelitas Technologies
+        © 2026 Excelitas Technologies
     </div>
     """,
     unsafe_allow_html=True
