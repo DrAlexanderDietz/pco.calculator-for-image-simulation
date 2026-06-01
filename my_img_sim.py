@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 from PIL import Image
+import tifffile as tiff
 import csv, os
 import csv
 from matplotlib import rcParams
@@ -959,14 +960,15 @@ def make_plots(new_vals):
             im_export = Image.fromarray(sim_im)
 
             buf = io.BytesIO()
-            im_export.save(buf, format="TIFF")
+            #im_export.save(buf, format="TIFF")
+            tiff.imwrite(buf, sim_im.astype(np.uint16))
             buf.seek(0)
 
             # Create download button
             st.sidebar.download_button(
             label="DOWNLOAD TIFF",
             data=buf,
-            file_name="pco_simulated_image.tiff",
+            file_name="pco_simulated_image.tif",
             mime="image/tiff",
             width='stretch',
             )  
