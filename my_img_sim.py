@@ -538,7 +538,7 @@ def test_chart_artificial(input_vals):
     pattern = (pattern+7)/8 #make pattern alternate 1/8
     
     i, j = np.indices(pattern.shape)
-    diag_mask = i >= j
+    diag_mask = i <= j
     
     pattern = pattern * diag_mask + diag_mask.T # show pattern only on one diagonal
     
