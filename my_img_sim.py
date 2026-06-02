@@ -535,7 +535,7 @@ def test_chart_artificial(input_vals):
     # Create radial sector pattern (black and white alternating sectors)
     pattern = (np.sin(sectors * theta) > 0).astype(int)
 
-    pattern = (pattern+19)/20
+    pattern = (pattern+7)/8
     
     frame_blank = np.zeros((size,size//16))       
     frame_karo = np.concatenate((frame_blank,frame_blank+2**1,frame_blank+2**2,frame_blank+2**3,
