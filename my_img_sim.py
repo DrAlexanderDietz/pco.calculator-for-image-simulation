@@ -179,8 +179,10 @@ def make_sidebar():
         default_size = 8
 
     exp_n = st.sidebar.slider("$log_2$(Image width)",
-            5, 10, default_size,
-            key="exp_n",
+            min_value = 5,
+            max_value = 10, 
+            value = default_size,
+            key = "exp_n",
             help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.",
             disabled = disable_exp_n)
 
