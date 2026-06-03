@@ -6,11 +6,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 from PIL import Image
 import tifffile as tiff
-import csv, os
 import csv
 from matplotlib import rcParams
 import math
 import io
+from scipy.ndimage import gaussian_filter
 
 # -----------------------------
 # Utility functions 
@@ -77,7 +77,7 @@ def make_sidebar():
         return(my_dict)
                     
             
-    csv_file = 'Resources/CamsList.csv'  # Replace with your CSV file path
+    csv_file = 'Resources/CamsList.csv'  #CSV file path
     data_cams = load_csv_to_dict(csv_file) #load camera datasheet values from file
 
     def data_sheet_vals(cam):
@@ -90,7 +90,7 @@ def make_sidebar():
         
         """
         
-        #simple overwriting of pvalues according to dataset value
+        #simple overwriting of values according to dataset value
         
         ds_pxl = float(data_cams[cam][1])
         ds_fwc = int(data_cams[cam][2])
@@ -169,14 +169,24 @@ def make_sidebar():
         )
 
     # --- Slider with callbacks ---
-    st.sidebar.slider("$log_2$(Image width)",
-            5, 10, 8,
+    
+    #Fix test pattern to 1024 x 1024 pixels
+    if dd_img == "Test Pattern HDR":
+        disable_exp_n = True
+        default_size = 10
+    else:
+        disable_exp_n = False
+        default_size = 8
+
+    exp_n = st.sidebar.slider("$log_2$(Image width)",
+            5, 10, default_size,
             key="exp_n",
-            help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.")
+            help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.",
+            disabled = disable_exp_n)
 
     #disablbe slider when full 1064 pxl width image is schosen
     if st.session_state.exp_n != 10:
-        st.sidebar.slider("Pixel Size Coefficient [%]",
+        crop = st.sidebar.slider("Pixel Size Coefficient [%]",
             crop_min(st.session_state.exp_n), 100, 100,
             key="crop",
             help="Adjusting the **pixel size coefficient** allows to compare different pixel sizes. If you"\
@@ -185,19 +195,20 @@ def make_sidebar():
             " of view and effectively 'zoom out' in the image. The initial FoV is also shown as green box."
             )
     else:
-        st.sidebar.slider("Pixel Size Coefficient [%]",
+        crop = st.sidebar.slider("Pixel Size Coefficient [%]",
             1, 100, 100,
             key="crop",
-            disabled=True
+            disabled=True,
+            help = "Adjust image width slider to allow for setting the **pixel size coefficient**!"
             )
 
     # Line profile position
     slider_linpos = st.sidebar.slider("Line Profile X [Height %]", 0, 99, 50, 
-                                      help="Position of the line profile relative to the image height")
+                                      help="Position the **line profile X** relative to the image height!")
     
         # Line profile position
     slider_linpos_II = st.sidebar.slider("Line Profile Y [Width %]", 0, 99, 50, 
-                                      help="Position of the line profile relative to the image width")
+                                      help="Position the **line profile Y** relative to the image width!")
 
     # ---------- CAMERA & EXPERIMENT ----------
     st.sidebar.subheader("CAMERA & SETTINGS")
@@ -207,14 +218,14 @@ def make_sidebar():
     camera_model = st.sidebar.selectbox("Camera Model and Mode",
                                         dropdown_options,
                                         index=len(dropdown_options)-1,
-                                        help="Chose your camera model. For all PCO cameras / opertaion modes values are predefined."\
-                                            " To configure your own custom camera use the **sCMOS** option. The Perfect Camera does" \
-                                            " act for comparison purposes. It does not show any tecnical noise besides the Poissonian" \
+                                        help="Chose your **camera model and mode**. For all PCO cameras / opertaion modes values are predefined."\
+                                            " To configure your own custom camera use the **sCMOS** option. The **Perfect Camera**" \
+                                            " acts for comparison purposes. It does not show any tecnical noise besides the Poissonian" \
                                             " noise and has perfect QE.")
 
     # Exposure time
     exposure_time = st.sidebar.text_input("Exposure Time / sec", "1.0",
-                                          help = "Set exposure time according to your experiment. Together with the maximum photon flux"
+                                          help = "Set **exposure time** according to your experiment. Together with the maximum photon flux"
                                           "density and background illumination this will determine the amount of photons that will" \
                                           "arrive at the dtector. The amount of dark current building up during" \
                                           "exposure is also a consequence of exposure time.")
@@ -222,14 +233,14 @@ def make_sidebar():
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list, 
-                                    help = "In sCMOS sensors, binning is only applied after acquisition and thus only " \
+                                    help = "In sCMOS sensors, **binning** is only applied after acquisition and thus only " \
                                         "provides a statistical improvement of the signal-to-noise ratio. Binning of four pixels "
                                         "(2x2) will increase the SNR by a foactor of 2!")
 
     # Averaging
     avg_numb = st.sidebar.number_input("Number Images for Averaging", 1, 
                                        help = "Averaging over series of images will reduce the total noise by a factor of one over the square " \
-                                       "root of the number of images. For example averaging over 16 images will increase the signal-to-noise ratio" \
+                                       "root of the **number of images for averaging**. For example averaging over 16 images will increase the signal-to-noise ratio" \
                                        " by a factor of 4!")   
 
     # ---------- ILLUMINATION ----------
@@ -237,7 +248,8 @@ def make_sidebar():
 
     #wavelength as slider
     wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600,
-                                   help = "For the simulation we assume illumination to be monochromatic. The respective quantum efficiency of the PCO" \
+                                   help = "For the simulation we assume illumination to be monochromatic, i.e. consiting of a single **wavelength**. " \
+                                   "The respective quantum efficiency of the PCO" \
                                    " camera of choice will be retreived automatically.")
 
     #photon flux density max and add backgraund
@@ -257,11 +269,16 @@ def make_sidebar():
     with st.sidebar:
         with st.expander("Plot & LUT Details"):
             #histogram scale choices Linear or Log
-            hist_scale = st.selectbox("Histogram Scale", ["Linear", "Logscale"])
+            hist_scale = st.selectbox("Histogram Scale", ["Linear", "Logscale"],
+                                      help = "**Histogramm scale** is set to **linear** per default. Change to **Logscale** if you want to display the" \
+                                      " histogramm with a logarithmic scaling, as often seen in EMVA1288 reports.")
 
             #Autoscale the image data or set deliberate limits 
             ats_opts_list = ["Autoscale","Set LUT Limits"]
-            ats_opts = st.selectbox("Scaling", ats_opts_list)
+            ats_opts = st.selectbox("Scaling", ats_opts_list,
+                                    help = "The **scaling** of the grayscale LUT is automatically set between minumum and maximum of the " \
+                                    "gray-values obtained. If you like to set manual limits, use **set LUT limits** and enter maximum (white) and " \
+                                    "minumum (black) according to your preferences!")
 
             #disable when autoscale
             if ats_opts == "Autoscale":
@@ -287,7 +304,9 @@ def make_sidebar():
 
             #make camera spex as sidbar items
             qe = st.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
-            step=0.01,disabled=disable_widget)
+                            step=0.01,disabled=disable_widget,
+                            help="**Quantum efficiency** describes the fraction of charge carriers generated per photon that hits the pixel surface. " \
+                            "This quantity is a function of wavelength and is a key distinctive performance parameter of scientic image sensors.")
             
             pxlpitch = st.text_input("Pixel Pitch / µm", data_sheet_vals(camera_model)[0], disabled=disable_widget,
                                      help = "The **pixel pitch** represents length and height of the individual pixels (detector elements) of"
@@ -295,38 +314,40 @@ def make_sidebar():
             
 
             rn = st.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget,
-                                    help = "Read Noise is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
+                                    help = "**Read Noise** (or 'temporal noise') is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
                                     " is approximated as a normal distribution. In reality, read noise may deviate from the perfect Gauss curve to some degree," \
                                     " depending on the type of sensor utilized.")
 
             dc = st.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget,
-                                    help = "The Dark Current describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
-                                    "of-thumb this value doubles every 7-8 °C when increasing the sensor temperature. Dark Current shows a Poissonian " \
-                                    "distribution and therefore contributes to the total noise of the camera.")
+                                    help = "The term **dark current** in relation to image sensors, describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
+                                    "of-thumb this value doubles every 7-8 °C when increasing the sensor temperature. The associated dark noise shows a Poissonian " \
+                                    "distribution and can contribute significantly to the total noise of the camera.")
             
             fwc = st.text_input("Fullwell Capacity / e-", data_sheet_vals(camera_model)[1], disabled=disable_widget,
-                                        help = "Fullwell Capacity in units of electrons. If the signal is clipping, the respective pixels will be highlighted" \
+                                        help = "**Fullwell capacity** refers to the maximum number of charge carriers that a single pixel is able to gather" \
+                                        " during a single exposure. If this number is reached, the respective pixels will be highlighted" \
                                         " in red in the simulated image!")
             
             bit_depth = st.slider("ADC Bit-Depth", min_value=8,max_value=16, value=int(data_sheet_vals(camera_model)[7]),
                                         step=1, disabled=disable_widget, 
-                                        help = "Dynamic Range of the analog-to-digital coverter. Image data will clip at this level.")
+                                        help = "**Dynamic range** of the analog-to-digital coverter. Image data will clip at this level.")
             
             convF = st.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget,
-                                        help = 'The Conversion Factor is the inverse analog of the also often used "System Gain". It describes how many'
+                                        help = 'The **conversion factor** is equal to the inverse of the also often used "System Gain". It describes how many'
                                         ' photo-electrons are required to increase the signal by one gray level.')
             
             dn_offset = st.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget,
-                                            help = "To prevent signal from clipping at the dark end, an artificial offset is set to shift the histogram to the " \
+                                            help = "To prevent signal from clipping at the dark end, an artificial **DN offset** is set to shift the histogram to the " \
                                             " right by a certin number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
                                             "metric analyses.")
             
             drksnu = st.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
-                                        help="Total Dark Signal Non-Uniformity. For simplicity we assume only random pixel and columnwise fixed pattern!")
+                                        help="Total **Dark Signal Non-Uniformity**. For simplicity we assume only random pixel and columnwise fixed pattern." \
+                                        " The ratio betwenn the two contributions can be set with the slider below.")
             
             dsnu_cont_sldr = st.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
-                                            help = 'This slider adjusts the the ratio for the DSNU origin sources: 100 percent means randomly distributed non-uniformities,' \
-                                            ' whereas 0 percent refers to a purely columnwise fixed non-uniformity pattern.')
+                                            help = 'This slider adjusts the the ratio for the DSNU origin sources: 100% means randomly distributed non-uniformities,' \
+                                            ' whereas 0% refers to a purely columnwise fixed non-uniformity pattern.')
             
 
 
@@ -347,7 +368,6 @@ def make_sidebar():
         p_pitch =  float(pxlpitch)
         dno =  float(dn_offset)
         dsnu = float(drksnu)
-        dsnu_cs = float(dsnu_cont_sldr)
         adc = int(bit_depth)
     else:
         qe_eff =  get_qe(camera_model, wavelength)
@@ -358,7 +378,6 @@ def make_sidebar():
         p_pitch =  data_sheet_vals(camera_model)[0]
         dno =  data_sheet_vals(camera_model)[5]
         dsnu = data_sheet_vals(camera_model)[6]
-        dsnu_cs = float(dsnu_cont_sldr)
         adc = data_sheet_vals(camera_model)[7]
 
     return {
@@ -392,7 +411,7 @@ def make_sidebar():
         "pxl_pitch": p_pitch,
         "dn_offset": int(dno),
         "drksnu": dsnu,
-        "dsnu_cont_sldr" : dsnu_cs,
+        "dsnu_cont_sldr" : float(dsnu_cont_sldr),
         "adc_bit" : int(adc),
         "export_choice": export_option,
     }
@@ -428,7 +447,7 @@ def line_pos(input_vals):
     return(int(f_width/bin_fac(input_vals)*lpp/100))
 
 def line_pos_II(input_vals):
-    """#Effektive Position [% der Bildhöhe] der Linie auf Canvas"""
+    """#Effektive Position [% der Bildbreite] der Linie auf Canvas"""
     
     f_width = input_vals["f_width"]
     lpp = input_vals["line_pos_II_prct"]
@@ -517,12 +536,11 @@ def homogeneous_illumination(input_vals):
     
     return sq_image
 
-def test_chart_artificial(input_vals):
+
+def test_chart_artificial(size=2**10, sectors=64):
     """
-    Generates an array that spans 15-bit of dynamic range.
-    """
-    size = input_vals["f_width"]
-    sectors = 64
+    Generates an 1024 x 10024 test rray that spans 15-bit of dynamic range.
+    """  
 
     # Create coordinate grid
     x = np.linspace(-1, 1, size)
@@ -535,12 +553,13 @@ def test_chart_artificial(input_vals):
     # Create radial sector pattern (black and white alternating sectors)
     pattern = (np.sin(sectors * theta) > 0).astype(int)
     
-    pattern = (pattern+7)/8 #make pattern alternate 1/8
+    pattern = (pattern+3)/4 #make pattern alternate 1/8
     
+    #make a mask for split at diagonal
     i, j = np.indices(pattern.shape)
     diag_mask = i < j
-    
-    pattern = pattern * diag_mask + diag_mask.T # show pattern only on one diagonal
+
+    pattern = np.where(diag_mask, pattern, 1)
     
     frame_blank = np.zeros((size,size//16))       
     frame_karo = np.concatenate((frame_blank,frame_blank+2**1,frame_blank+2**2,frame_blank+2**3,
@@ -553,7 +572,9 @@ def test_chart_artificial(input_vals):
     frame_total = frame_karo * pattern
 
     frame_total = frame_total / frame_total.max()
-    
+
+    frame_total = gaussian_filter(frame_total, sigma=1.0)
+
     return frame_total
 
 def any_image(image_path, input_vals):
@@ -565,15 +586,12 @@ def any_image(image_path, input_vals):
     # Open the image
     img = Image.open(image_path).convert('L')  # Convert to grayscale for (x, y) dimensions
     
-    # Define the compression fraction (e.g., 0.5 = reduce to 50% of original size)
-    fraction = comp_fac
-    
     # Get original size
     original_width, original_height = img.size
     
-    # Calculate new size
-    new_width = int(original_width * fraction)
-    new_height = int(original_height * fraction)
+    # Calculate new size with compression fraction (e.g., 0.5 = reduce to 50% of original size)
+    new_width = int(original_width * comp_fac)
+    new_height = int(original_height * comp_fac)
     
     # Resize image
     comp_img = img.resize((new_width, new_height))
@@ -613,7 +631,6 @@ def make_plots(new_vals):
     
     #extract variables
     qe_eff = new_vals["qe_eff"]
-    full_well_cap = new_vals["full_well_cap"]
     convF = new_vals["convF"]
     export_choice = new_vals["export_choice"]
     ron = new_vals["ron"]
@@ -725,9 +742,6 @@ def make_plots(new_vals):
         fw= input_vals["f_width"]
         crop = input_vals["img_comp"]
         bin_fac = input_vals["bin_factor"]
-        bit_depth = input_vals["adc_bit"]
-        dno = input_vals["dn_offset"]
-        #cam_name= input_vals["camera_name"]
         
         pos=line_pos(new_vals)
         posII =line_pos_II(new_vals)
@@ -742,7 +756,6 @@ def make_plots(new_vals):
         
         #Identify every pixel that exceeds full well capacity / bit depth...
         mask = img > fwc*1/cF
-        #mask = img >= 2**bit_depth-dno
         overlay = np.zeros((*img.shape, 4))
         overlay[mask] = [1,0,0,1]
                       
@@ -756,15 +769,14 @@ def make_plots(new_vals):
         
         #...and overlay in red
         axs[plt_no].imshow(overlay,interpolation='none')
-        axs[plt_no].imshow(frame_img,alpha=0,interpolation='none',)
-        axs[plt_no].plot([0,fw],[pos,pos],'r-')
+        axs[plt_no].imshow(frame_img,alpha=0,interpolation='none')
+        axs[plt_no].plot([0,fw],[pos,pos],'-', color='crimson')
         axs[plt_no].plot([posII,posII],[0,fw],'b-')
 
         #Plot Settings
         axs[plt_no].xaxis.tick_top()
         axs[plt_no].autoscale(False)
         axs[plt_no].set_xlabel("Simulated Image / DN", labelpad=10)
-        #axs[plt_no].set_ylabel(r"{}".format(cam_name), labelpad=10)
         fig.colorbar(img, fraction=0.046) 
         
         crop_window(fw,crop, (0,1), bin_fac)                               
@@ -813,7 +825,7 @@ def make_plots(new_vals):
         row_no_truth = [i/bin_fac(new_vals) for i in range(len(line_prof_vals_truth))]
         
         #Plot Settings
-        axs[plt_no].plot(row_no,line_prof_vals,'r-', label='Simulated Image (X)')
+        axs[plt_no].plot(row_no,line_prof_vals,'-', color='crimson', label='Simulated Image (X)')
         axs[plt_no].plot(row_no,line_profII_vals,'b-', label='Simulated Image (Y)')
         axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'-',color='gold', label='Ground Truth (X)')
         axs[plt_no].plot(row_no_truth,line_profII_vals_truth,'-',color='magenta', label='Ground Truth (Y)')
@@ -942,7 +954,7 @@ def make_plots(new_vals):
                 return(square_overlay(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Test Pattern HDR":
-                return(test_chart_artificial(input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
+                return(test_chart_artificial() * eff_el_ph(new_vals) + eff_el_bg(new_vals))
             
             elif base_img == "Microscopy Example":
                 return(any_image('import_images/image_bio.png',input_vals) * eff_el_ph(new_vals) + eff_el_bg(new_vals))
@@ -965,7 +977,6 @@ def make_plots(new_vals):
             im_export = Image.fromarray(sim_im)
 
             buf = io.BytesIO()
-            #im_export.save(buf, format="TIFF")
             tiff.imwrite(buf, sim_im.astype(np.uint16))
             buf.seek(0)
 
@@ -982,41 +993,55 @@ def make_plots(new_vals):
     #Start with generating the arrays for the base and noisy image
     frame_phots = get_base_image(new_vals)
 
-    #create an array with a fixed pattern for simulation of DSNU
-    DSNU_var = new_vals["drksnu"]
-
-    #Column located DSNU
-    pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",") #base file: 1D random distribution w/ stdv 1 around 0
-    pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]] #truncate to base image width
-    pattern_noise_frame = np.array(pattern_noise_list)[None, :] * np.ones((frame_phots.shape[-1], 1)) * 1/new_vals["convF"] * DSNU_var #fixed stipe pattern
-
-    dsnu_row_rand_ratio = new_vals["dsnu_cont_sldr"]/100
-    
-    #load random dsnu only when necessary
-    if dsnu_row_rand_ratio != 0:
-
-        #Random Pixel DSNU
-        rand_dsnu_frame = np.loadtxt("Resources/random_1024x1024.csv", delimiter = ',') #base file: 2D random distribution w/ stdv 1 around 0
-        rand_dsnu_frame = rand_dsnu_frame[:frame_phots.shape[-1],:frame_phots.shape[-1]]
-        rand_dsnu_frame = rand_dsnu_frame*1/new_vals["convF"] * DSNU_var
-
-        #superimpose random and columnwise dsnu frames
-        dsnu_frame_total = (rand_dsnu_frame * dsnu_row_rand_ratio**0.5) + (pattern_noise_frame * (1-dsnu_row_rand_ratio)**0.5)
-
-    else:
-        dsnu_frame_total = pattern_noise_frame
-
+    #generate noisy image from base image
     frame_sim_fullres = rand_pG((frame_phots*qe_eff),new_vals)
-    
-    #frame_sim_fullres = frame_sim_fullres + np.round(pattern_noise_frame)
-    frame_sim_fullres = frame_sim_fullres + np.round(dsnu_frame_total)
 
+    #---------------- incorporate nonuniformity pattern ----------------------   
+    #We need to set up an array with a fixed pattern for simulation of DSNU
+    
+    #take dsnu from datasheet
+    DSNU_var = new_vals["drksnu"]
+    dsnu_row_rand_ratio = new_vals["dsnu_cont_sldr"]/100
+
+    #Column located DSNU ........................
+
+    if DSNU_var != 0:
+        #base file: 1D random distribution w/ stdv 1 around 0
+        pattern_noise_list = np.loadtxt("Resources/normal_random_1024.txt", delimiter=",") 
+        
+        #truncate to base image width
+        pattern_noise_list = pattern_noise_list[0:frame_phots.shape[-1]] 
+        
+        #fixed stipe pattern
+        pattern_noise_frame = np.array(pattern_noise_list)[None, :] * np.ones((frame_phots.shape[-1], 1)) * 1/new_vals["convF"] * DSNU_var        
+        
+        #load random dsnu only when necessary
+        if dsnu_row_rand_ratio != 0:
+
+            #Random Pixel DSNU
+            rand_dsnu_frame = np.loadtxt("Resources/random_1024x1024.csv", delimiter = ',') #base file: 2D random distribution w/ stdv 1 around 0
+            rand_dsnu_frame = rand_dsnu_frame[:frame_phots.shape[-1],:frame_phots.shape[-1]]
+            rand_dsnu_frame = rand_dsnu_frame*1/new_vals["convF"] * DSNU_var
+
+            #superimpose random and columnwise dsnu frames
+            dsnu_frame_total = (rand_dsnu_frame * dsnu_row_rand_ratio**0.5) + (pattern_noise_frame * (1-dsnu_row_rand_ratio)**0.5)
+        
+        #otherwise use fixed column noise pattern only
+        else:
+            dsnu_frame_total = pattern_noise_frame 
+
+        #simply superimpose dark signal nonuniformity
+        frame_sim_fullres = frame_sim_fullres + np.round(dsnu_frame_total)
+
+    #conduct binning when necessary
     frame_img = bin_array_sum(frame_sim_fullres, bin_fac(new_vals)) 
     
     #cut image data according to bit depth of the camera
     frame_img[frame_img>=2**new_vals["adc_bit"]] = int(2**new_vals["adc_bit"])-1
 
-    ####Plot data ========================================================= 
+    #-------------------------------------------------------------------------------------------
+    ################################## CARRY OUT PLOTS #########################################
+    #-------------------------------------------------------------------------------------------
     
     #Top left: Photon Map .........................................................
     truth_plot(frame_phots, new_vals)
@@ -1035,59 +1060,43 @@ def make_plots(new_vals):
 
     return fig    
 
-def calc_snr(phi=1, t_exp=1, bin_fac=0, qe=1,
-                 pxl_pitch=6.5, ron=0, mu_d=0, fwc=100000):
-        
-        """
-        Parameter:
-            
-            phi (float):    photon flux density in ph/(um)²/sec
-            t_exp (float):  exposure_time in seconds
-            bin_fac (int):  binning factor applied 2: 0=1x1; 1=2x2, 2=4x4
-            
-        """
-        
-        signal_e = qe * (phi*t_exp*pxl_pitch**2)
-        n_dark = (mu_d*t_exp)**0.5
-        n_shot = (signal_e)**0.5
-        n_tot = (n_dark**2+n_shot**2+ron**2)**0.5
-        snr = signal_e / n_tot
-        
-        return [snr, signal_e, n_tot, n_dark, n_shot, bin_fac]
 
-def snr_info(input_vals):
-    
-    """
-    Returns a string that provides info on the SNR according to current settings.
-    """
-    
-    phi_pfd_max = input_vals["phi_pfd_max"]
-    t_exp = input_vals["t_exp"]
-    pxl_pitch = input_vals["pxl_pitch"]
-    ron = input_vals["ron"]
-    mu_dark = input_vals["mu_dark"]
-    full_well_cap = input_vals["full_well_cap"]
-    qe_eff = input_vals["qe_eff"]
-    bin_factor = input_vals["bin_factor"]
-    
-    snr_data = calc_snr(phi_pfd_max, t_exp, bin_factor, qe_eff, 
-                    pxl_pitch, ron, mu_dark, full_well_cap)
+# -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.- SNR Calculation -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
 
-    my_snr_info = {"Photon Flux Density [ph/(um)²/sec]": phi_pfd_max,
-                   "Quantum Efficiency [%]": qe_eff*100,
-                   "Pixel Pitch [um]:" : pxl_pitch,
-                   "Exposure Time [sec]:" :  t_exp,
-                   "Binning Level" : bin_factor,
-                   "---":0,
-                " Signal-to-Noise Ratio SNR": snr_data[0],
-                "SNR w/ binning": snr_data[0]*2**snr_data[5], 
-                "Mean Signal [e-/pxl]": snr_data[1],
-                "Total Noise [e-/pxl]": snr_data[2],
-                "Dark Noise Contribution [e-/pxl]": snr_data[3],
-                "Shot Noise Contribution [e-/pxl]": snr_data[4],
-                "Read Noise Contribution [e-/pxl]": ron}
+
+# def snr_info(input_vals):
     
-    return(my_snr_info)        
+#     """
+#     Returns a string that provides info on the SNR according to current settings.
+#     """
+    
+#     phi_pfd_max = input_vals["phi_pfd_max"]
+#     t_exp = input_vals["t_exp"]
+#     pxl_pitch = input_vals["pxl_pitch"]
+#     ron = input_vals["ron"]
+#     mu_dark = input_vals["mu_dark"]
+#     full_well_cap = input_vals["full_well_cap"]
+#     qe_eff = input_vals["qe_eff"]
+#     bin_factor = input_vals["bin_factor"]
+    
+#     snr_data = calc_snr(phi_pfd_max, t_exp, bin_factor, qe_eff, 
+#                     pxl_pitch, ron, mu_dark, full_well_cap)
+
+#     my_snr_info = {"Photon Flux Density [ph/(um)²/sec]": phi_pfd_max,
+#                    "Quantum Efficiency [%]": qe_eff*100,
+#                    "Pixel Pitch [um]:" : pxl_pitch,
+#                    "Exposure Time [sec]:" :  t_exp,
+#                    "Binning Level" : bin_factor,
+#                    "---":0,
+#                 " Signal-to-Noise Ratio SNR": snr_data[0],
+#                 "SNR w/ binning": snr_data[0]*2**snr_data[5], 
+#                 "Mean Signal [e-/pxl]": snr_data[1],
+#                 "Total Noise [e-/pxl]": snr_data[2],
+#                 "Dark Noise Contribution [e-/pxl]": snr_data[3],
+#                 "Shot Noise Contribution [e-/pxl]": snr_data[4],
+#                 "Read Noise Contribution [e-/pxl]": ron}
+    
+#     return(my_snr_info)        
 
 ############################## PROGRAMM ###########################
 
