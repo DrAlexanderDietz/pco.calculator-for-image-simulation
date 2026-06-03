@@ -178,7 +178,7 @@ def make_sidebar():
         disable_exp_n = False
         default_size = 8
 
-    exp_n = st.sidebar.slider("$log_2$(Image width)",
+    st.sidebar.slider("$log_2$(Image width)",
             min_value = 5,
             max_value = 10, 
             value = default_size,
