@@ -173,15 +173,14 @@ def make_sidebar():
     #Fix test pattern to 1024 x 1024 pixels
     if dd_img == "Test Pattern HDR":
         disable_exp_n = True
-        default_size = 10
+        st.session_state.exp_n = 10
     else:
         disable_exp_n = False
-        default_size = 8
 
     st.sidebar.slider("$log_2$(Image width)",
             min_value = 5,
             max_value = 10, 
-            value = default_size,
+            value = 8,
             key = "exp_n",
             help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.",
             disabled = disable_exp_n)
