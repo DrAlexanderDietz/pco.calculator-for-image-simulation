@@ -182,7 +182,8 @@ def make_sidebar():
             max_value = 10, 
             value = 8,
             key = "exp_n",
-            help="Set quadratic ROI (with 2$^n$ pixel) with possible width values of 32/ 64/ 128/ 256/ 512/ 1064.",
+            help="Set quadratic ROI (with 2$^n$ pixel) with possible image width values of 32 (#5) | 64 (#6) | 128 (#7) | 256 (#8)" \
+            " | 512 (#9) | 1064 (#10). For the sake of saving data, larger images can not be generated.",
             disabled = disable_exp_n)
 
     #disablbe slider when full 1064 pxl width image is schosen
@@ -202,14 +203,6 @@ def make_sidebar():
             disabled=True,
             help = "Adjust image width slider to allow for setting the **pixel size coefficient**!"
             )
-
-    # Line profile position
-    slider_linpos = st.sidebar.slider("Line Profile X [Height %]", 0, 99, 50, 
-                                      help="Position the **line profile X** relative to the image height!")
-    
-        # Line profile position
-    slider_linpos_II = st.sidebar.slider("Line Profile Y [Width %]", 0, 99, 50, 
-                                      help="Position the **line profile Y** relative to the image width!")
 
     # ---------- CAMERA & EXPERIMENT ----------
     st.sidebar.subheader("CAMERA & SETTINGS")
@@ -267,6 +260,27 @@ def make_sidebar():
     # ---------- DISPLAY SETTINGS ----------
     st.sidebar.subheader("DISPLAY SETTINGS")
 
+    #provide line profile plot setting behind expander menu
+    with st.sidebar:
+        with st.expander("Line Profile Settings"):
+
+            # Dropdown for line plot choices
+            dd_lineplot_options = [
+                    "Horizontal & Vertical","Horizontal", "Vertical"]
+            dd_lineplot = st.selectbox("Choose Line Profile Option",
+                                            dd_lineplot_options,
+                                            help="Choose which line plots to display - horizontal, vertical or both!")
+            
+            # Line profile position
+            slider_linpos = st.slider("Horizontal Line Profile [Height %]", 0, 99, 50, 
+                                            help="Position the horizontal **line profile X** relative to the image height!",
+                                            disabled= (dd_lineplot=="Vertical"))
+            
+            # Line profile position
+            slider_linpos_II = st.slider("Vertical Line Profile [Width %]", 0, 99, 50, 
+                                            help="Position the vertical **line profile Y** relative to the image width!",
+                                            disabled=(dd_lineplot=="Horizontal"))
+            
     with st.sidebar:
         with st.expander("Plot & LUT Details"):
             #histogram scale choices Linear or Log
@@ -344,7 +358,7 @@ def make_sidebar():
             
             drksnu = st.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
                                         help="Total **Dark Signal Non-Uniformity**. For simplicity we assume only random pixel and columnwise fixed pattern." \
-                                        " The ratio betwenn the two contributions can be set with the slider below.")
+                                        " The ratio between the two contributions can be set with the slider below.")
             
             dsnu_cont_sldr = st.slider("DSNU Pixel : Column Ratio [%]",min_value=0, max_value=100, value=0,
                                             help = 'This slider adjusts the the ratio for the DSNU origin sources: 100% means randomly distributed non-uniformities,' \
@@ -387,6 +401,7 @@ def make_sidebar():
         "exp_n": int(st.session_state.exp_n),
         "f_width": int(2 ** st.session_state.exp_n),
         "img_comp": int(st.session_state.crop)/100,
+        "line_plots": str(dd_lineplot),
         "line_pos_prct": int(slider_linpos),
         "line_pos_II_prct": int(slider_linpos_II),
         # camera & experiment
@@ -696,7 +711,7 @@ def make_plots(new_vals):
                             '-', color='limegreen', alpha=1)
 
     def truth_plot(phots, input_vals, plt_no=(0,0),
-                    pos=line_pos(new_vals), posII=line_pos_II(new_vals), bf=bin_fac(new_vals)):       
+                    pos=line_pos(new_vals), posII=line_pos_II(new_vals), bf=bin_fac(new_vals), lnplt = new_vals["line_plots"]):       
         """
         Plots the Photon ground truth 2D distribution as a color map.
         
@@ -714,8 +729,13 @@ def make_plots(new_vals):
         phots = axs[plt_no].imshow(phots,
                                 cmap='rainbow',
                                 interpolation='none')
-        axs[plt_no].plot([0,fw],[pos*bf,pos*bf],'-', color='gold')
-        axs[plt_no].plot([posII*bf,posII*bf],[0,fw],'m-')
+
+        if lnplt != "Vertical":
+            axs[plt_no].plot([0,fw],[pos*bf,pos*bf],'-', color='gold')
+
+        if lnplt != "Horizontal":
+            axs[plt_no].plot([posII*bf,posII*bf],[0,fw],'m-')
+
         axs[plt_no].autoscale(False)
         axs[plt_no].xaxis.tick_top()
         axs[plt_no].set_xlabel("Input: Expected Photons per Phys. Pixel", labelpad=10)
@@ -727,7 +747,7 @@ def make_plots(new_vals):
         fig.colorbar(phots, fraction=0.046)
     
 
-    def generate_sim_im_plot(img,input_vals, plt_no=(0,1)):
+    def generate_sim_im_plot(img,input_vals, plt_no=(0,1), lnplt = new_vals["line_plots"]):
         
         """
         Plots the simulate image in DN as a grayscale map with overlay for
@@ -771,8 +791,13 @@ def make_plots(new_vals):
         #...and overlay in red
         axs[plt_no].imshow(overlay,interpolation='none')
         axs[plt_no].imshow(frame_img,alpha=0,interpolation='none')
-        axs[plt_no].plot([0,fw],[pos,pos],'-', color='crimson')
-        axs[plt_no].plot([posII,posII],[0,fw],'b-')
+
+        #show line plots of choice
+        if lnplt != "Vertical":
+            axs[plt_no].plot([0,fw],[pos,pos],'-', color='crimson')
+
+        if lnplt != "Horizontal": 
+            axs[plt_no].plot([posII,posII],[0,fw],'b-')
 
         #Plot Settings
         axs[plt_no].xaxis.tick_top()
@@ -804,7 +829,8 @@ def make_plots(new_vals):
         bf = bin_fac(new_vals)
         md = input_vals["mu_dark"]
         te = input_vals["t_exp"]
-        dno = input_vals["dn_offset"]       
+        dno = input_vals["dn_offset"]
+        lnplt = input_vals["line_plots"]     
 
         luts = lut_settings(new_vals)                         
 
@@ -825,11 +851,17 @@ def make_plots(new_vals):
         row_no = [i for i in range(len(line_prof_vals))]
         row_no_truth = [i/bin_fac(new_vals) for i in range(len(line_prof_vals_truth))]
         
-        #Plot Settings
-        axs[plt_no].plot(row_no,line_prof_vals,'-', color='crimson', label='Simulated Image (X)')
-        axs[plt_no].plot(row_no,line_profII_vals,'b-', label='Simulated Image (Y)')
-        axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'-',color='gold', label='Ground Truth (X)')
-        axs[plt_no].plot(row_no_truth,line_profII_vals_truth,'-',color='magenta', label='Ground Truth (Y)')
+        #display only plots of choice
+
+        if lnplt != "Vertical":
+            axs[plt_no].plot(row_no,line_prof_vals,'-', color='crimson', label='Simulated Image (X)')
+            axs[plt_no].plot(row_no_truth,line_prof_vals_truth,'-',color='gold', label='Ground Truth (X)')
+            
+        if lnplt != "Horizontal":
+            axs[plt_no].plot(row_no,line_profII_vals,'b-', label='Simulated Image (Y)')
+            axs[plt_no].plot(row_no_truth,line_profII_vals_truth,'-',color='magenta', label='Ground Truth (Y)')
+
+        #plot settings
         axs[plt_no].set_xlim([0,row_no[-1]])
         axs[plt_no].set_ylim([v_min_img,v_max_img]) #new
         axs[plt_no].yaxis.tick_left()
@@ -899,17 +931,24 @@ def make_plots(new_vals):
         axs[plt_no].set_xlim(v_min_img,v_max_img)
         
         plt.tight_layout()
-        
-        plt.text(0.03, 0.97, "Mean: "+str(round(np.mean(y_vals),1)),
-                    transform=plt.gca().transAxes,
-                    fontsize=12, verticalalignment='top',
-                    horizontalalignment='left')
 
-        plt.text(0.03, 0.9, "StDv: "+str(round(np.std(y_vals),1)),
-                    transform=plt.gca().transAxes,
-                    fontsize=12, verticalalignment='top',
-                    horizontalalignment='left')
-        
+        #show mean and stdv only for homogeneous illumination
+        if new_vals["base_image"] == "Homogeneous":    
+            plt.text(0.03, 0.97, "Mean: "+str(round(np.mean(y_vals),1)),
+                        transform=plt.gca().transAxes,
+                        fontsize=12, verticalalignment='top',
+                        horizontalalignment='left')
+
+            plt.text(0.03, 0.9, "StDv: "+str(round(np.std(y_vals),1)),
+                        transform=plt.gca().transAxes,
+                        fontsize=12, verticalalignment='top',
+                        horizontalalignment='left')
+
+            plt.text(0.03, 0.83, "SNR: "+str(round((np.mean(y_vals)-new_vals["dn_offset"])/np.std(y_vals),1)),
+                                    transform=plt.gca().transAxes,
+                                    fontsize=12, verticalalignment='top',
+                                    horizontalalignment='left')
+            
         #plt.show()
 
         #draw the downloadbutton and award it functionality to download the pdf to the above plots
@@ -997,6 +1036,7 @@ def make_plots(new_vals):
     #generate noisy image from base image
     frame_sim_fullres = rand_pG((frame_phots*qe_eff),new_vals)
 
+    
     #---------------- incorporate nonuniformity pattern ----------------------   
     #We need to set up an array with a fixed pattern for simulation of DSNU
     
