@@ -183,7 +183,7 @@ def make_sidebar():
             value = 8,
             key = "exp_n",
             help="Set quadratic ROI (with 2$^n$ pixel) with possible image width values of 32 (#5) | 64 (#6) | 128 (#7) | 256 (#8)" \
-            " | 512 (#9) | 1064 (#10). For the sake of saving data, larger images can not be generated.",
+            " | 512 (#9) | 1064 (#10). For the sake of saving data, larger frames can not be generated.",
             disabled = disable_exp_n)
 
     #disablbe slider when full 1064 pxl width image is schosen
@@ -193,8 +193,8 @@ def make_sidebar():
             key="crop",
             help="Adjusting the **pixel size coefficient** allows to compare different pixel sizes. If you"\
             " want to compare 4.6 µm pixels of pco.edge 10 bi with the 6.5 µm pixels of" \
-            " pco.edge 4.2 for example, simply apply a 71% 'coefficient' (=4.6/6.5) to the larger pixels to adapt the field" \
-            " of view and effectively 'zoom out' in the image. The initial FoV is also shown as green box."
+            " pco.edge 4.2 for example, simply apply a pixel size coefficient of 71% (=4.6/6.5) to the larger pixels to adapt the field" \
+            " of view and effectively 'zoom out' in the image. The initial FoV (i.e. at 100%) is also indicated as a green box."
             )
     else:
         crop = st.sidebar.slider("Pixel Size Coefficient [%]",
@@ -214,26 +214,26 @@ def make_sidebar():
                                         index=len(dropdown_options)-1,
                                         help="Chose your **camera model and mode**. For all PCO cameras / opertaion modes values are predefined."\
                                             " To configure your own custom camera use the **sCMOS** option. The **Perfect Camera**" \
-                                            " acts for comparison purposes. It does not show any tecnical noise besides the Poissonian" \
+                                            " acts for comparison purposes. It does not show any hardware related noise, but rather only the Poissonian shot noise" \
                                             " noise and has perfect QE.")
 
     # Exposure time
     exposure_time = st.sidebar.text_input("Exposure Time / sec", "1.0",
-                                          help = "Set **exposure time** according to your experiment. Together with the maximum photon flux"
-                                          "density and background illumination this will determine the amount of photons that will" \
-                                          "arrive at the dtector. The amount of dark current building up during" \
-                                          "exposure is also a consequence of exposure time.")
+                                          help = "Set **exposure time** according to your experiment. Together with the maximum photon flux "\
+                                          "density and background illumination this will determine the amount of photons that will " \
+                                          "arrive at the detector. The amount of signal that is due to dark current during " \
+                                          "exposure is also an implication of exposure time.")
 
     # Binning options
     bin_values_list = ["1x1", "2x2", "4x4"]
     bin_opts = st.sidebar.selectbox("Binning", bin_values_list, 
                                     help = "In sCMOS sensors, **binning** is only applied after acquisition and thus only " \
                                         "provides a statistical improvement of the signal-to-noise ratio. Binning of four pixels "
-                                        "(2x2) will increase the SNR by a foactor of 2!")
+                                        "(2x2) will increase the SNR by a factor of 2!")
 
     # Averaging
     avg_numb = st.sidebar.number_input("Number Images for Averaging", 1, 
-                                       help = "Averaging over series of images will reduce the total noise by a factor of one over the square " \
+                                       help = "Averaging over a series of images will reduce the total noise by a factor of one over the square " \
                                        "root of the **number of images for averaging**. For example averaging over 16 images will increase the signal-to-noise ratio" \
                                        " by a factor of 4!")   
 
@@ -243,8 +243,8 @@ def make_sidebar():
     #wavelength as slider
     wavelength = st.sidebar.slider("Wavelength / nm", 200, 1100, 600,
                                    help = "For the simulation we assume illumination to be monochromatic, i.e. consiting of a single **wavelength**. " \
-                                   "The respective quantum efficiency of the PCO" \
-                                   " camera of choice will be retreived automatically.")
+                                   "The respective quantum efficiency your PCO" \
+                                   " camera of choice will be retrieved automatically from the associated QE curve.")
 
     #photon flux density max and add backgraund
     phi_pfd_max = st.sidebar.text_input("Max. Photon Flux Density / ph/(um)²/sec", "1.0",
@@ -269,16 +269,16 @@ def make_sidebar():
                     "Horizontal & Vertical","Horizontal", "Vertical"]
             dd_lineplot = st.selectbox("Choose Line Profile Option",
                                             dd_lineplot_options,
-                                            help="Choose which line plots to display - horizontal, vertical or both!")
+                                            help="Choose which line plots to display via the dropdown menu - horizontal, vertical or both!")
             
             # Line profile position
             slider_linpos = st.slider("Horizontal Line Profile [Height %]", 0, 99, 50, 
-                                            help="Position the horizontal **line profile X** relative to the image height!",
+                                            help="Position the horizontal **line profile X** relative to the image height via the slider!",
                                             disabled= (dd_lineplot=="Vertical"))
             
             # Line profile position
             slider_linpos_II = st.slider("Vertical Line Profile [Width %]", 0, 99, 50, 
-                                            help="Position the vertical **line profile Y** relative to the image width!",
+                                            help="Position the vertical **line profile Y** relative to the image width via the slider!",
                                             disabled=(dd_lineplot=="Horizontal"))
             
     with st.sidebar:
@@ -303,8 +303,8 @@ def make_sidebar():
 
             #max and min for manual LUT
             lut_max = st.text_input("Scale LUT max.", "255", disabled=disable_lut_widget)
-            lut_min = st.text_input("Scale LUT min.", "0", disabled=disable_lut_widget)
-
+            lut_min = st.text_input("Scale LUT min.", "0", disabled=disable_lut_widget)         
+            
     # ---------- CAM SPECIFICATIONS ----------
     st.sidebar.subheader("CAMERA SPECIFICS")
 
@@ -320,18 +320,21 @@ def make_sidebar():
             #make camera spex as sidbar items
             qe = st.slider("Quantum Efficiency", min_value=0.00, max_value=1.00, value=float(get_qe(camera_model, wavelength)),
                             step=0.01,disabled=disable_widget,
-                            help="**Quantum efficiency** describes the fraction of charge carriers generated per photon that hits the pixel surface. " \
+                            help="**Quantum efficiency** describes the probability for a charge carrier generation per photon that hits the pixel surface. " \
                             "This quantity is a function of wavelength and is a key distinctive performance parameter of scientic image sensors.")
             
             pxlpitch = st.text_input("Pixel Pitch / µm", data_sheet_vals(camera_model)[0], disabled=disable_widget,
-                                     help = "The **pixel pitch** represents length and height of the individual pixels (detector elements) of"
-                                     " the image sensor.")
+                                     help = "The **pixel pitch** represents length and height of the individual pixels of" \
+                                    " the image sensor. It is worth mentioning here that **pixel** is still broadly used as a term for the detector element, "\
+                                    "but to help differentiating between the picture element in the image and the physical detector "\
+                                    "element on the image sensor, one may use the term **dexel** instead.")
             
 
             rn = st.text_input("Read Noise / e-/pxl", data_sheet_vals(camera_model)[2], disabled=disable_widget,
                                     help = "**Read Noise** (or 'temporal noise') is an inherent feature of CMOS image sensors. In this simulation the distribution of the read noise" \
                                     " is approximated as a normal distribution. In reality, read noise may deviate from the perfect Gauss curve to some degree," \
-                                    " depending on the type of sensor utilized.")
+                                    " depending on the type of sensor utilized, which is referred to as 'noise tailing'. Current image sensor "\
+                                    "technology only shows little tailing, so we ignore this in this simulation.")
 
             dc = st.text_input("Dark Current / e-/pxl/sec", data_sheet_vals(camera_model)[3], disabled=disable_widget,
                                     help = "The term **dark current** in relation to image sensors, describes the number of thermal electrons created in a pixel per second exposure. As a rule-" \
@@ -345,7 +348,10 @@ def make_sidebar():
             
             bit_depth = st.slider("ADC Bit-Depth", min_value=8,max_value=16, value=int(data_sheet_vals(camera_model)[7]),
                                         step=1, disabled=disable_widget, 
-                                        help = "**Dynamic range** of the analog-to-digital coverter. Image data will clip at this level.")
+                                        help = "**Dynamic range** of the analog-to-digital coverter. This determines how many gray values the camera is " \
+                                        "able to differentiate. Since image data is contained and tranferred in a "\
+                                        "binary format, this value is given in units of bits. Please note that in instances of overexposure " \
+                                        "image data will clip at this level.")
             
             convF = st.text_input("Conversion Factor / e-/DN", data_sheet_vals(camera_model)[4], disabled=disable_widget,
                                         help = 'The **conversion factor** is equal to the inverse of the also often used "System Gain". It describes how many'
@@ -353,8 +359,8 @@ def make_sidebar():
             
             dn_offset = st.text_input("DN Offset", data_sheet_vals(camera_model)[5], disabled=disable_widget,
                                             help = "To prevent signal from clipping at the dark end, an artificial **DN offset** is set to shift the histogram to the " \
-                                            " right by a certin number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
-                                            "metric analyses.")
+                                            " right by a certain number of gray levels. This dark offset would need to be subtracted for any kind of ratio-" \
+                                            "metric analyses or when determining signal-to-noise ratio.")
             
             drksnu = st.text_input("DSNU / e-", data_sheet_vals(camera_model)[6], disabled=disable_widget,
                                         help="Total **Dark Signal Non-Uniformity**. For simplicity we assume only random pixel and columnwise fixed pattern." \
@@ -641,6 +647,7 @@ def bin_array_sum(array,bin_size):
         reshaped = array.reshape(x // bin_size, bin_size, y // bin_size, bin_size)
         return reshaped.sum(axis=(1, 3))
 
+
 def make_plots(new_vals):
     """This is the main function to run the plot generation. It draws its
     values from the values set in the GUI."""
@@ -909,6 +916,8 @@ def make_plots(new_vals):
         else:
             bin_no = [i for i in range(int(v_min_img),int(v_max_img),1)]
 
+            
+
         #plot settings    
         my_hist, bins, patches = axs[plt_no].hist(y_vals,
                             log=(scale=="Logscale"),
@@ -920,6 +929,8 @@ def make_plots(new_vals):
                     )
         max_val= my_hist.max()
 
+        plt.tight_layout()
+
         axs[plt_no].plot(np.linspace(v_min_img,v_max_img,100),np.linspace(0,max_val,100),'-',color='black', alpha=0.5)
         axs[plt_no].yaxis.tick_left()
         axs[plt_no].xaxis.tick_bottom()
@@ -929,22 +940,30 @@ def make_plots(new_vals):
         axs[plt_no].autoscale(enable=True, axis='x', tight=False)
         axs[plt_no].locator_params(axis='x', nbins=6)
         axs[plt_no].set_xlim(v_min_img,v_max_img)
-        
-        plt.tight_layout()
 
+        plt.text(0.99, 0.98, "Max: "+str(int(v_max_img)),
+                                transform=plt.gca().transAxes,
+                                fontsize=12, verticalalignment='top',
+                                horizontalalignment='right')
+
+        plt.text(0.02, 0.02, "Min: "+str(int(v_min_img)),
+                                        transform=plt.gca().transAxes,
+                                        fontsize=12, verticalalignment='bottom',
+                                        horizontalalignment='left')
+        
         #show mean and stdv only for homogeneous illumination
         if new_vals["base_image"] == "Homogeneous":    
-            plt.text(0.03, 0.97, "Mean: "+str(round(np.mean(y_vals),1)),
+            plt.text(0.02, 0.98, "Mean: "+str(round(np.mean(y_vals),1)),
                         transform=plt.gca().transAxes,
                         fontsize=12, verticalalignment='top',
                         horizontalalignment='left')
 
-            plt.text(0.03, 0.9, "StDv: "+str(round(np.std(y_vals),1)),
+            plt.text(0.02, 0.91, "StDv: "+str(round(np.std(y_vals),1)),
                         transform=plt.gca().transAxes,
                         fontsize=12, verticalalignment='top',
                         horizontalalignment='left')
 
-            plt.text(0.03, 0.83, "SNR: "+str(round((np.mean(y_vals)-new_vals["dn_offset"])/np.std(y_vals),1)),
+            plt.text(0.02, 0.84, "SNR: "+str(round((np.mean(y_vals)-new_vals["dn_offset"])/np.std(y_vals),1)),
                                     transform=plt.gca().transAxes,
                                     fontsize=12, verticalalignment='top',
                                     horizontalalignment='left')
@@ -1159,7 +1178,7 @@ st.info("""
         launch the calculator via the **Run Simulation** button.
 
         Histogram and line profile data are also given for illustrating the impact of different settings on the result image. 
-        The outcome data can be stored either as PDF summary or 16-bit TIFF (image only). To safe the virtual camera image
+        The outcome can be stored either as PDF summary or 16-bit TIFF (image only). To safe the monochrome virtual camera image
         simply use the **DOWNLOAD** button, that appears  in the sidebar after pressing **Run Simulation**.
         """)
 
