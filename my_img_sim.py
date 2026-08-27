@@ -11,6 +11,7 @@ from matplotlib import rcParams
 import math
 import io
 from scipy.ndimage import gaussian_filter
+from matplotlib.colors import PowerNorm
 
 # -----------------------------
 # Utility functions 
@@ -304,6 +305,13 @@ def make_sidebar():
             #max and min for manual LUT
             lut_max = st.text_input("Scale LUT max.", "255", disabled=disable_lut_widget)
             lut_min = st.text_input("Scale LUT min.", "0", disabled=disable_lut_widget)         
+
+            gamma_val = st.slider("Gamma", 0.2, 2.5, 1.0,
+                                help = "A **gamma** curve changes how brightness values are distributed across the available 8-bit display range. With a gamma less than 1 "\
+                                    " darker image regions are emphasized and will be displayed as brighter. "\
+                                    "Basically, applying **gamma** bends the linear LUT - while the black point and white point stay the same, the available gray levels in between"\
+                                    "are re-allocated. This can improve the visibility of weak fluorescence or subtle image features to the eye "\
+                                    "without saturating the brightest areas.")
             
     # ---------- CAM SPECIFICATIONS ----------
     st.sidebar.subheader("CAMERA SPECIFICS")
@@ -424,6 +432,7 @@ def make_sidebar():
         "lut_autoscale": ats_opts_list.index(ats_opts),
         "lut_scale_max": float(lut_max),
         "lut_scale_min": float(lut_min),
+        "gamma_val": float(gamma_val),
         # cam specs
         "qe_eff": qe_eff,
         "ron": ron,
@@ -770,6 +779,7 @@ def make_plots(new_vals):
         fw= input_vals["f_width"]
         crop = input_vals["img_comp"]
         bin_fac = input_vals["bin_factor"]
+        plot_gamma = input_vals["gamma_val"]
         
         pos=line_pos(new_vals)
         posII =line_pos_II(new_vals)
@@ -791,8 +801,10 @@ def make_plots(new_vals):
         img = axs[plt_no].imshow(frame_img,
                             cmap = 'gray',
                             interpolation='none',
+                            norm=PowerNorm(
                             vmin=v_min_img,
                             vmax=v_max_img,
+                            gamma=plot_gamma), #
                             )
         
         #...and overlay in red
@@ -931,7 +943,7 @@ def make_plots(new_vals):
 
         plt.tight_layout()
 
-        axs[plt_no].plot(np.linspace(v_min_img,v_max_img,100),np.linspace(0,max_val,100),'-',color='black', alpha=0.5)
+        #Plot and axis settings
         axs[plt_no].yaxis.tick_left()
         axs[plt_no].xaxis.tick_bottom()
         axs[plt_no].xaxis.set_label_position('bottom')
@@ -941,6 +953,13 @@ def make_plots(new_vals):
         axs[plt_no].locator_params(axis='x', nbins=6)
         axs[plt_no].set_xlim(v_min_img,v_max_img)
 
+        #apply gamma curve to LUT indicator graph
+        my_gamma = new_vals["gamma_val"]
+        norm = PowerNorm(my_gamma, vmin=v_min_img, vmax=v_max_img)
+        x = np.linspace(v_min_img, v_max_img, 200)
+        axs[plt_no].plot(x,norm(x) * max_val, '-', color='black', alpha=0.5)
+
+        #Show min and max value on canvas in corners
         plt.text(0.99, 0.98, "Max: "+str(int(v_max_img)),
                                 transform=plt.gca().transAxes,
                                 fontsize=12, verticalalignment='top',
